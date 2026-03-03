@@ -14,7 +14,7 @@ struct AppRouter: View {
                     authorizationService: onboardingState.authorizationService
                 ) {
                     Task {
-                        await onboardingState.refresh()
+                        await onboardingState.completeOnboarding()
                     }
                 }
             }
@@ -48,15 +48,30 @@ private struct MainTabView: View {
 
 @MainActor
 final class AppOnboardingState: ObservableObject {
+    private enum StorageKey {
+        static let onboardingCompleted = "onboarding_completed_v2"
+    }
+
     @Published var isReadyForMainFlow: Bool = false
     let authorizationService: AuthorizationService
+    private let userDefaults: UserDefaults
 
-    init(authorizationService: AuthorizationService? = nil) {
+    init(
+        authorizationService: AuthorizationService? = nil,
+        userDefaults: UserDefaults = .standard
+    ) {
         self.authorizationService = authorizationService ?? AuthorizationService()
+        self.userDefaults = userDefaults
     }
 
     func refresh() async {
         let snapshot = await authorizationService.fetchCurrentStatus()
-        isReadyForMainFlow = snapshot.isReadyForMainFlow
+        let hasCompletedOnboarding = userDefaults.bool(forKey: StorageKey.onboardingCompleted)
+        isReadyForMainFlow = snapshot.hasRequiredPermissions && hasCompletedOnboarding
+    }
+
+    func completeOnboarding() async {
+        userDefaults.set(true, forKey: StorageKey.onboardingCompleted)
+        await refresh()
     }
 }

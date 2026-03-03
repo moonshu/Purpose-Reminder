@@ -183,9 +183,25 @@ struct PolicySettingsView: View {
                         isPickerPresented = true
                     }
 
-                    Text("선택된 앱: \(viewModel.selection.applicationTokens.count)개")
+                    Text(
+                        """
+                        선택된 대상: 앱 \(viewModel.selection.applicationTokens.count)개 · \
+                        카테고리 \(viewModel.selection.categoryTokens.count)개 · \
+                        웹 \(viewModel.selection.webDomainTokens.count)개
+                        """
+                    )
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
+
+                    Text("앱 목록이 보이지 않으면 카테고리 선택으로도 정책 저장/실험이 가능합니다.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+#if targetEnvironment(simulator)
+                    Text("시뮬레이터에서는 설치 앱 목록이 제한될 수 있어 실기기 테스트가 필요합니다.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+#endif
                 } header: {
                     Text("대상 앱")
                 }
@@ -197,7 +213,7 @@ struct PolicySettingsView: View {
                     } else {
                         ForEach(Array(viewModel.drafts.enumerated()), id: \.element.id) { index, draft in
                             VStack(alignment: .leading, spacing: 12) {
-                                Text("앱 정책 \(index + 1)")
+                                Text("대상 정책 \(index + 1)")
                                     .font(.headline)
 
                                 Stepper(value: Binding(

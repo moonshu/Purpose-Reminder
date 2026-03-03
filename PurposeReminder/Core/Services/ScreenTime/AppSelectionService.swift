@@ -5,6 +5,7 @@ import ManagedSettings
 enum AppSelectionError: LocalizedError {
     case tokenEncodingFailed
     case tokenDecodingFailed
+    case unexpectedTokenType
 
     var errorDescription: String? {
         switch self {
@@ -12,6 +13,8 @@ enum AppSelectionError: LocalizedError {
             return "앱 토큰 인코딩에 실패했습니다."
         case .tokenDecodingFailed:
             return "앱 토큰 디코딩에 실패했습니다."
+        case .unexpectedTokenType:
+            return "앱 정책 타입이 올바르지 않습니다."
         }
     }
 }
@@ -29,15 +32,33 @@ protocol AppSelectionServicing {
 }
 
 struct AppSelectionService: AppSelectionServicing {
+    private let codec = PolicyTargetTokenCodec()
+
     func makeSelection(from policies: [AppPolicy]) -> FamilyActivitySelection {
         var selection = FamilyActivitySelection()
         let activePolicies = policies.filter(\.isActive)
+        var applicationTokens = Set<ApplicationToken>()
+        var categoryTokens = Set<ActivityCategoryToken>()
+        var webDomainTokens = Set<WebDomainToken>()
 
-        let tokens = activePolicies.compactMap { policy in
-            try? decodeToken(from: policy.appTokenData)
+        for policy in activePolicies {
+            guard let target = try? codec.decode(from: policy.appTokenData) else {
+                continue
+            }
+
+            switch target {
+            case .application(let token):
+                applicationTokens.insert(token)
+            case .category(let token):
+                categoryTokens.insert(token)
+            case .webDomain(let token):
+                webDomainTokens.insert(token)
+            }
         }
 
-        selection.applicationTokens = Set(tokens)
+        selection.applicationTokens = applicationTokens
+        selection.categoryTokens = categoryTokens
+        selection.webDomainTokens = webDomainTokens
         return selection
     }
 
@@ -51,11 +72,15 @@ struct AppSelectionService: AppSelectionServicing {
             uniqueKeysWithValues: existingPolicies.map { ($0.appTokenData, $0) }
         )
 
-        return selection.applicationTokens.compactMap { token in
-            guard let tokenData = try? encodeToken(token) else {
-                return nil
-            }
+        let selectedTokenData = selection.applicationTokens.compactMap { token in
+            try? codec.encode(.application(token))
+        } + selection.categoryTokens.compactMap { token in
+            try? codec.encode(.category(token))
+        } + selection.webDomainTokens.compactMap { token in
+            try? codec.encode(.webDomain(token))
+        }
 
+        return selectedTokenData.compactMap { tokenData in
             if var existing = existingByToken[tokenData] {
                 existing.isActive = true
                 existing.defaultDurationMinutes = existing.defaultDurationMinutes > 0
@@ -79,7 +104,7 @@ struct AppSelectionService: AppSelectionServicing {
 
     func encodeToken(_ token: ApplicationToken) throws -> Data {
         do {
-            return try JSONEncoder().encode(token)
+            return try codec.encode(.application(token))
         } catch {
             throw AppSelectionError.tokenEncodingFailed
         }
@@ -87,7 +112,13 @@ struct AppSelectionService: AppSelectionServicing {
 
     func decodeToken(from data: Data) throws -> ApplicationToken {
         do {
-            return try JSONDecoder().decode(ApplicationToken.self, from: data)
+            let target = try codec.decode(from: data)
+            guard case let .application(token) = target else {
+                throw AppSelectionError.unexpectedTokenType
+            }
+            return token
+        } catch let error as AppSelectionError {
+            throw error
         } catch {
             throw AppSelectionError.tokenDecodingFailed
         }

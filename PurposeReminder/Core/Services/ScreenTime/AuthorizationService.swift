@@ -24,8 +24,16 @@ struct AuthorizationSnapshot: Equatable {
     let screenTime: ScreenTimePermissionStatus
     let notifications: NotificationPermissionStatus
 
+    var hasRequiredPermissions: Bool {
+        screenTime == .approved
+    }
+
+    var canDeliverReminders: Bool {
+        notifications == .authorized
+    }
+
     var isReadyForMainFlow: Bool {
-        screenTime == .approved && notifications == .authorized
+        hasRequiredPermissions
     }
 }
 

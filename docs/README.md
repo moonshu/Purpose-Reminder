@@ -2,7 +2,7 @@
 
 ## 제품 기준 문서
 - `ios-mvp-spec.md`: 제품 범위/사용자 플로우/데이터 모델 기준
-- `onboarding-permission-ux-guide.md`: 랜딩/온보딩/권한 UX 개선 기준
+- `onboarding-permission-ux-guide.md`: 랜딩/온보딩/권한 리디자인 에이전트 실행 플레이북
 
 ## 구현 실행 문서
 - `ios-technical-architecture.md`: 코드 구조/모듈 책임/테스트 전략

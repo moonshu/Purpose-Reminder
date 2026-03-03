@@ -7,7 +7,7 @@ enum ShieldPolicyError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidTokenData:
-            return "Shield 적용 중 앱 토큰을 읽을 수 없습니다."
+            return "Shield 적용 중 정책 대상 토큰을 읽을 수 없습니다."
         }
     }
 }
@@ -19,6 +19,7 @@ protocol ShieldPolicyServicing {
 
 final class ShieldPolicyService: ShieldPolicyServicing {
     private let store: ManagedSettingsStore
+    private let tokenCodec = PolicyTargetTokenCodec()
 
     init(store: ManagedSettingsStore = ManagedSettingsStore()) {
         self.store = store
@@ -26,21 +27,38 @@ final class ShieldPolicyService: ShieldPolicyServicing {
 
     func applyPolicies(_ policies: [AppPolicy]) throws {
         let activePolicies = policies.filter(\.isActive)
+        var applicationTokens = Set<ApplicationToken>()
+        var categoryTokens = Set<ActivityCategoryToken>()
+        var webDomainTokens = Set<WebDomainToken>()
 
-        let decodedTokens = try activePolicies.map { policy in
+        for policy in activePolicies {
+            let target: PolicyTargetToken
             do {
-                return try JSONDecoder().decode(ApplicationToken.self, from: policy.appTokenData)
+                target = try tokenCodec.decode(from: policy.appTokenData)
             } catch {
                 throw ShieldPolicyError.invalidTokenData
             }
+
+            switch target {
+            case .application(let token):
+                applicationTokens.insert(token)
+            case .category(let token):
+                categoryTokens.insert(token)
+            case .webDomain(let token):
+                webDomainTokens.insert(token)
+            }
         }
 
-        if decodedTokens.isEmpty {
-            store.shield.applications = nil
-            return
-        }
+        store.shield.applications = applicationTokens.isEmpty ? nil : applicationTokens
+        store.shield.webDomains = webDomainTokens.isEmpty ? nil : webDomainTokens
 
-        store.shield.applications = Set(decodedTokens)
+        if categoryTokens.isEmpty {
+            store.shield.applicationCategories = nil
+            store.shield.webDomainCategories = nil
+        } else {
+            store.shield.applicationCategories = .specific(categoryTokens)
+            store.shield.webDomainCategories = .specific(categoryTokens)
+        }
     }
 
     func clearAll() {
