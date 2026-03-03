@@ -93,6 +93,50 @@ final class ReminderSchedulerTests: XCTestCase {
         XCTAssertEqual(acted.action, .completed)
         XCTAssertEqual(acted.firedAt, now)
     }
+
+    func testScheduleReminderThrowsWhenSessionMissing() async throws {
+        let repository = InMemoryReminderRepository()
+        let notificationCenter = NotificationCenterSpy()
+        let scheduler = ReminderScheduler(
+            repository: repository,
+            notificationCenter: notificationCenter,
+            timeProvider: FixedReminderTimeProvider(now: Date(timeIntervalSince1970: 1_700_000_000))
+        )
+
+        do {
+            _ = try await scheduler.scheduleReminder(
+                sessionId: UUID(),
+                reminderOffsetMinutes: 5
+            )
+            XCTFail("expected sessionNotFound")
+        } catch let error as ReminderSchedulerError {
+            XCTAssertEqual(error, .sessionNotFound)
+        }
+    }
+
+    func testReminderDateUsesImmediateFallbackWhenOffsetExceedsDuration() async throws {
+        let repository = InMemoryReminderRepository()
+        let notificationCenter = NotificationCenterSpy()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let scheduler = ReminderScheduler(
+            repository: repository,
+            notificationCenter: notificationCenter,
+            timeProvider: FixedReminderTimeProvider(now: now)
+        )
+
+        let session = GoalSession(
+            targetAppTokenData: Data("com.example.reddit".utf8),
+            templateId: nil,
+            goalTextSnapshot: "확인",
+            startedAt: now,
+            endedAt: nil,
+            status: .active,
+            plannedDurationMinutes: 3
+        )
+
+        let scheduledAt = scheduler.reminderDate(session: session, reminderOffsetMinutes: 10)
+        XCTAssertEqual(scheduledAt, now.addingTimeInterval(1))
+    }
 }
 
 private struct FixedReminderTimeProvider: TimeProviderProtocol {

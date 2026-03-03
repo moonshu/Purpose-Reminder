@@ -33,6 +33,11 @@ private struct MainTabView: View {
                     Label("세션", systemImage: "play.circle")
                 }
 
+            HistoryView()
+                .tabItem {
+                    Label("기록", systemImage: "clock")
+                }
+
             PolicySettingsView()
                 .tabItem {
                     Label("정책", systemImage: "hand.raised.app")

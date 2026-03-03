@@ -20,6 +20,13 @@ struct ReminderScheduleResult: Equatable {
     let requestIdentifier: String
 }
 
+protocol ReminderScheduling {
+    func scheduleReminder(
+        session: GoalSession,
+        reminderOffsetMinutes: Int
+    ) async throws -> ReminderScheduleResult
+}
+
 protocol UserNotificationCenterScheduling {
     func add(_ request: UNNotificationRequest) async throws
 }
@@ -142,3 +149,5 @@ final class ReminderScheduler {
         throw ReminderSchedulerError.reminderEventNotFound
     }
 }
+
+extension ReminderScheduler: ReminderScheduling {}

@@ -10,10 +10,12 @@ final class SessionStartRecommendationViewModel: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var isStarting = false
     @Published var errorMessage: String?
+    @Published var warningMessage: String?
 
     private let templateRepository: GoalTemplateRepository
     private let policyRepository: AppPolicyRepository
     private let sessionCoordinator: SessionCoordinator
+    private let reminderScheduler: ReminderScheduling
     private let recommendationService: QuickGoalRecommendationServicing
     private let preferredAppTokenData: Data?
 
@@ -24,12 +26,14 @@ final class SessionStartRecommendationViewModel: ObservableObject {
         templateRepository: GoalTemplateRepository,
         policyRepository: AppPolicyRepository,
         sessionCoordinator: SessionCoordinator,
+        reminderScheduler: ReminderScheduling,
         recommendationService: QuickGoalRecommendationServicing = QuickGoalRecommendationService(),
         preferredAppTokenData: Data? = nil
     ) {
         self.templateRepository = templateRepository
         self.policyRepository = policyRepository
         self.sessionCoordinator = sessionCoordinator
+        self.reminderScheduler = reminderScheduler
         self.recommendationService = recommendationService
         self.preferredAppTokenData = preferredAppTokenData
     }
@@ -40,11 +44,13 @@ final class SessionStartRecommendationViewModel: ObservableObject {
         let policyRepository = SwiftDataAppPolicyRepository(context: context)
         let sessionRepository = SwiftDataGoalSessionRepository(context: context)
         let sessionCoordinator = SessionCoordinator(repository: sessionRepository)
+        let reminderScheduler = ReminderScheduler(repository: sessionRepository)
 
         self.init(
             templateRepository: templateRepository,
             policyRepository: policyRepository,
             sessionCoordinator: sessionCoordinator,
+            reminderScheduler: reminderScheduler,
             recommendationService: QuickGoalRecommendationService(),
             preferredAppTokenData: preferredAppTokenData
         )
@@ -120,6 +126,8 @@ final class SessionStartRecommendationViewModel: ObservableObject {
         isStarting = true
         defer { isStarting = false }
 
+        warningMessage = nil
+
         do {
             switch sessionCoordinator.state {
             case .idle:
@@ -141,13 +149,27 @@ final class SessionStartRecommendationViewModel: ObservableObject {
             startedSession = session
             errorMessage = nil
 
-            if var usedTemplate {
-                usedTemplate.useCount += 1
-                usedTemplate.lastUsedAt = session.startedAt
-                try await templateRepository.save(usedTemplate)
+            let reminderOffset = selectedPolicy?.reminderOffsetMinutes ?? Constants.Session.defaultReminderOffsetMinutes
+            do {
+                _ = try await reminderScheduler.scheduleReminder(
+                    session: session,
+                    reminderOffsetMinutes: reminderOffset
+                )
+            } catch {
+                warningMessage = "리마인드를 예약하지 못했습니다. 세션은 계속 진행됩니다."
+            }
 
-                let templates = try await templateRepository.fetchAll()
-                applyRecommendations(templates: templates)
+            if var usedTemplate {
+                do {
+                    usedTemplate.useCount += 1
+                    usedTemplate.lastUsedAt = session.startedAt
+                    try await templateRepository.save(usedTemplate)
+
+                    let templates = try await templateRepository.fetchAll()
+                    applyRecommendations(templates: templates)
+                } catch {
+                    warningMessage = "목표 사용 기록 저장에 실패했습니다."
+                }
             }
         } catch {
             errorMessage = "세션 시작에 실패했습니다. 다시 시도해 주세요."

@@ -69,6 +69,14 @@ struct SessionStartView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                if let warningMessage = viewModel.warningMessage {
+                    Section("안내") {
+                        Text(warningMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.orange)
+                    }
+                }
             }
             .navigationTitle("세션 시작")
             .overlay {
