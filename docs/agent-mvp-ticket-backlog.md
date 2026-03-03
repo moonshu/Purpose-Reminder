@@ -228,3 +228,4 @@
 - PR-AG-013 상세 계획: docs/tickets/PR-AG-013-plan.md
 - PR-AG-014 상세 계획: docs/tickets/PR-AG-014-plan.md
 - PR-AG-015 상세 계획: docs/tickets/PR-AG-015-plan.md
+- Stage 4 확장 백로그: docs/agent-stage4-ticket-backlog.md

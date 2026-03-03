@@ -1,5 +1,30 @@
 # Purpose Reminder iOS Manual Setup Checklist
 
+## 00. 수동 개입 전체 요약
+- 이 문서는 에이전트가 대신 처리할 수 없는 항목의 단일 진입점이다.
+
+### 최초 셋업 순서
+1. Apple Developer 로그인/서명 연결 (§2)
+2. Screen Time + App Group + Extension 포인트 확인 (§2)
+3. 실기기 권한 승인(Screen Time/알림) (§3)
+4. 정책 저장 + Shield 개입 확인 (§3, §8)
+5. Shortcuts Intent 노출/실행 확인 (§4)
+
+### BM 코드 매핑
+| BM 코드 | 발생 조건 | 해소 작업 | 재개 조건 |
+|---|---|---|---|
+| BM-010-01 | 리마인드 수동 수신 검증 불가 | 실기기에서 알림 허용 후 세션 실행 | 리마인드 알림 1회 수신 확인 |
+| BM-012-01 | Shortcuts에서 Intent 미노출 | 실기기 빌드 후 Shortcuts 앱 재색인/재실행 | Quick/Favorite Intent 노출 확인 |
+| BM-012-02 | Siri/Signing 설정 누락 | Xcode Signing & Capabilities에서 Siri 추가 | 빌드 성공 + Intent 노출 |
+| BM-013-01 | 실기기 접근 불가 | 실기기 확보 후 E2E-01~04,06 실행 | 필수 E2E 결과 기록 완료 |
+| BM-013-02 | FamilyControls/Entitlement 미설정 | App ID/Capability/Entitlement 재설정 | 정책 저장 + Shield 개입 확인 |
+
+### BLOCKED -> READY 전환 절차
+1. BM 코드 대응 수동 작업 수행
+2. §10 증적 규칙으로 결과 기록
+3. 백로그 티켓 상태를 `BLOCKED_MANUAL`에서 `READY`로 변경
+4. 재개 프롬프트에 BM 코드와 해소 내용을 포함
+
 ## 1. 목적
 - 코드로 해결되지 않는 수동 작업을 누락 없이 수행하기 위한 체크리스트.
 - 담당자가 바뀌어도 동일하게 재현 가능하도록 작성.

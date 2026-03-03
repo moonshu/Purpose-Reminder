@@ -8,12 +8,14 @@
 - `ios-technical-architecture.md`: 코드 구조/모듈 책임/테스트 전략
 - `ios-dependencies-and-integrations.md`: 라이브러리/의존성/외부 연동 정리
 - `ios-mvp-execution-roadmap.md`: 단계별 개발 계획과 완료 기준
+- `ios-stage4-execution-roadmap.md`: Stage 4(폐루프 완성) 실행 계획
 - `ios-manual-setup-checklist.md`: 로그인/API 키/서명 등 수동 작업 체크리스트
 - `e2e-mvp-checklist.md`: MVP 핵심 플로우 E2E 시나리오/증적 템플릿
 
 ## 에이전트 실행 문서
 - `agent-ticket-spec.md`: 에이전트가 바로 실행 가능한 티켓 규격
 - `agent-mvp-ticket-backlog.md`: MVP용 실제 에이전트 티켓 백로그
+- `agent-stage4-ticket-backlog.md`: Stage 4 확장 티켓 백로그
 
 ## 권장 사용 순서
 1. `ios-mvp-spec.md` 읽고 기능 범위 고정
@@ -30,6 +32,13 @@
 - tickets/PR-AG-013-plan.md
 - tickets/PR-AG-014-plan.md
 - tickets/PR-AG-015-plan.md
+
+## 티켓별 상세 계획 문서 (PR-AG-016~020)
+- tickets/PR-AG-016-plan.md
+- tickets/PR-AG-017-plan.md
+- tickets/PR-AG-018-plan.md
+- tickets/PR-AG-019-plan.md
+- tickets/PR-AG-020-plan.md
 
 ## 문서 동기화 규칙
 
