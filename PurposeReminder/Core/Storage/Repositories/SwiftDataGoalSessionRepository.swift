@@ -66,6 +66,14 @@ final class SwiftDataGoalSessionRepository: GoalSessionRepository {
         return try context.fetch(descriptor).map(ReminderEvent.init(entity:))
     }
 
+    func fetchReminderEvent(id: UUID) async throws -> ReminderEvent? {
+        var descriptor = FetchDescriptor<ReminderEventEntity>(
+            predicate: #Predicate { $0.id == id }
+        )
+        descriptor.fetchLimit = 1
+        return try context.fetch(descriptor).first.map(ReminderEvent.init(entity:))
+    }
+
     private func findSessionEntity(id: UUID) throws -> GoalSessionEntity? {
         var descriptor = FetchDescriptor<GoalSessionEntity>(
             predicate: #Predicate { $0.id == id }

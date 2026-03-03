@@ -18,4 +18,6 @@ protocol GoalSessionRepository {
     func saveReminderEvent(_ event: ReminderEvent) async throws
     /// 세션 ID로 리마인드 이벤트를 조회한다
     func fetchReminderEvents(sessionId: UUID) async throws -> [ReminderEvent]
+    /// id로 특정 리마인드 이벤트를 조회한다
+    func fetchReminderEvent(id: UUID) async throws -> ReminderEvent?
 }
