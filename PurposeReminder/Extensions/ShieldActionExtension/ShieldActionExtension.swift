@@ -1,5 +1,138 @@
-import ShieldAction
 import ManagedSettings
+import Foundation
+import OSLog
 
-// MARK: - 구현은 PR-AG-006에서 완성
-// Shield 액션 Extension 플레이스홀더
+private enum ShieldRoute: String {
+    case startGoalSelection
+    case dismissShield
+}
+
+private enum ShieldRouteStorage {
+    static let appGroupSuiteName = "group.com.purposereminder.shared"
+    static let lastEventKey = "shield.lastEvent"
+}
+
+private struct ShieldRouteEvent: Codable {
+    let route: String
+    let targetType: String
+    let isPolicyManaged: Bool
+    let actionAt: TimeInterval
+}
+
+private struct ShieldActionRouter {
+    private let defaults: UserDefaults?
+    private let logger = Logger(
+        subsystem: "com.purposereminder.app",
+        category: "ShieldActionExtension"
+    )
+
+    init(
+        defaults: UserDefaults? = UserDefaults(
+            suiteName: ShieldRouteStorage.appGroupSuiteName
+        )
+    ) {
+        self.defaults = defaults
+    }
+
+    func record(route: ShieldRoute, targetType: String, isPolicyManaged: Bool) -> Bool {
+        guard let defaults else {
+            logger.error("App Group UserDefaults unavailable. route=\(route.rawValue, privacy: .public)")
+            return false
+        }
+
+        let event = ShieldRouteEvent(
+            route: route.rawValue,
+            targetType: targetType,
+            isPolicyManaged: isPolicyManaged,
+            actionAt: Date().timeIntervalSince1970
+        )
+
+        do {
+            let data = try JSONEncoder().encode(event)
+            defaults.set(data, forKey: ShieldRouteStorage.lastEventKey)
+            return true
+        } catch {
+            logger.error("Failed to encode route event: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+}
+
+final class ShieldActionExtension: ShieldActionDelegate {
+    private let router = ShieldActionRouter()
+    private let settingsStore = ManagedSettingsStore()
+
+    override func handle(
+        action: ShieldAction,
+        for application: ApplicationToken,
+        completionHandler: @escaping (ShieldActionResponse) -> Void
+    ) {
+        let isPolicyManaged = settingsStore.shield.applications?.contains(application) ?? false
+        completionHandler(
+            response(
+                for: action,
+                targetType: "application",
+                isPolicyManaged: isPolicyManaged
+            )
+        )
+    }
+
+    override func handle(
+        action: ShieldAction,
+        for webDomain: WebDomainToken,
+        completionHandler: @escaping (ShieldActionResponse) -> Void
+    ) {
+        let isPolicyManaged = settingsStore.shield.webDomains?.contains(webDomain) ?? false
+        completionHandler(
+            response(
+                for: action,
+                targetType: "webDomain",
+                isPolicyManaged: isPolicyManaged
+            )
+        )
+    }
+
+    override func handle(
+        action: ShieldAction,
+        for category: ActivityCategoryToken,
+        completionHandler: @escaping (ShieldActionResponse) -> Void
+    ) {
+        let hasApplicationCategoryPolicy = settingsStore.shield.applicationCategories
+            .map { $0 != .none } ?? false
+        let hasWebDomainCategoryPolicy = settingsStore.shield.webDomainCategories
+            .map { $0 != .none } ?? false
+        let hasCategoryPolicy = hasApplicationCategoryPolicy || hasWebDomainCategoryPolicy
+        completionHandler(
+            response(
+                for: action,
+                targetType: "category",
+                isPolicyManaged: hasCategoryPolicy
+            )
+        )
+    }
+
+    private func response(
+        for action: ShieldAction,
+        targetType: String,
+        isPolicyManaged: Bool
+    ) -> ShieldActionResponse {
+        switch action {
+        case .primaryButtonPressed:
+            let isRecorded = router.record(
+                route: .startGoalSelection,
+                targetType: targetType,
+                isPolicyManaged: isPolicyManaged
+            )
+            return isRecorded ? .defer : .close
+        case .secondaryButtonPressed:
+            _ = router.record(
+                route: .dismissShield,
+                targetType: targetType,
+                isPolicyManaged: isPolicyManaged
+            )
+            return .close
+        @unknown default:
+            return .close
+        }
+    }
+}
