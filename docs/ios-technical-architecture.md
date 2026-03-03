@@ -108,3 +108,9 @@ PurposeReminder/
 ## 8. 확장 고려사항 (MVP 이후)
 - 서버 동기화 추가 시 Repository 뒤에 RemoteDataSource 추가
 - AI 코칭 추가 시 Goal/Session 이벤트 스트림 재사용
+
+## 9. SwiftData 마이그레이션/스키마 운영 규칙 (추가)
+- 필드 추가는 nullable 또는 기본값 우선
+- 필드 삭제/타입 변경은 Stage 경계에서만 수행
+- 스키마 변경 시 영향 범위를 문서/PR에 동시 기록
+- MVP에서는 로컬 저장소 강제 롤백 경로 미제공

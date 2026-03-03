@@ -1,5 +1,6 @@
 import Foundation
 import FamilyControls
+import ManagedSettings
 
 enum AppSelectionError: LocalizedError {
     case tokenEncodingFailed

@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 /// 앱 최상위 내비게이션 진입점
 struct AppRouter: View {
@@ -29,8 +30,8 @@ final class AppOnboardingState: ObservableObject {
     @Published var isReadyForMainFlow: Bool = false
     let authorizationService: AuthorizationService
 
-    init(authorizationService: AuthorizationService = AuthorizationService()) {
-        self.authorizationService = authorizationService
+    init(authorizationService: AuthorizationService? = nil) {
+        self.authorizationService = authorizationService ?? AuthorizationService()
     }
 
     func refresh() async {

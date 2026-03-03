@@ -78,7 +78,7 @@ final class AuthorizationService: AuthorizationServicing {
         }
     }
 
-    private func mapScreenTimeStatus(_ status: AuthorizationCenter.AuthorizationStatus) -> ScreenTimePermissionStatus {
+    private func mapScreenTimeStatus(_ status: AuthorizationStatus) -> ScreenTimePermissionStatus {
         switch status {
         case .approved:
             return .approved

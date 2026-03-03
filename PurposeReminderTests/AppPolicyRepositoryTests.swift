@@ -1,4 +1,5 @@
 import XCTest
+@testable import PurposeReminder
 
 @MainActor
 final class AppPolicyRepositoryTests: XCTestCase {

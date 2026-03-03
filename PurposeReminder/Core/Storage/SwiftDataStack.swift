@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import OSLog
 
 @MainActor
 final class SwiftDataStack {
@@ -16,15 +17,23 @@ final class SwiftDataStack {
 			ReminderEventEntity.self
 		])
 
-		let configuration = ModelConfiguration(
-			isStoredInMemoryOnly: inMemory
-		)
-
 		do {
+			let configuration = ModelConfiguration(
+				isStoredInMemoryOnly: inMemory
+			)
 			container = try ModelContainer(for: schema, configurations: [configuration])
 			mainContext = ModelContext(container)
 		} catch {
-			fatalError("Failed to initialize SwiftData container: \(error)")
+			// Fallback for local/dev runtime issues (e.g. corrupted store path).
+			// Keeps the app bootable while still surfacing the root cause.
+			do {
+				let fallback = ModelConfiguration(isStoredInMemoryOnly: true)
+				container = try ModelContainer(for: schema, configurations: [fallback])
+				mainContext = ModelContext(container)
+				AppLogger.storage.warning("SwiftData persistent store init failed. Fallback to in-memory store. error=\(String(describing: error))")
+			} catch {
+				fatalError("Failed to initialize SwiftData container (persistent + inMemory fallback): \(error)")
+			}
 		}
 	}
 }

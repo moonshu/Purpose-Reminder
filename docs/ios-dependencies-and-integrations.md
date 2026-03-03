@@ -85,3 +85,10 @@
 1. Apple 기본 프레임워크만으로 MVP 흐름 완성
 2. TestFlight 내부 테스트 안정화
 3. 분석/크래시 SDK를 필요할 때 최소 범위로 추가
+
+## 7. 개발 환경 전제 조건 (추가)
+- iOS Deployment Target: 17.0+
+- Xcode: 16.x 권장
+- 시뮬레이터는 UI/기본 로직 확인용
+- 실기기 필수: FamilyControls/ManagedSettings/DeviceActivity/Shortcuts
+- 최소 버전 미만이면 BLOCKED_MANUAL 처리

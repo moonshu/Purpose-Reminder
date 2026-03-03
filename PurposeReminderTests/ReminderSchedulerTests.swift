@@ -1,4 +1,5 @@
 import XCTest
+@testable import PurposeReminder
 import UserNotifications
 
 @MainActor
@@ -101,53 +102,82 @@ private struct FixedReminderTimeProvider: TimeProviderProtocol {
 private actor ReminderStore {
     var sessions: [UUID: GoalSession] = [:]
     var reminderEventsBySession: [UUID: [ReminderEvent]] = [:]
+
+    func allSessions() -> [GoalSession] {
+        sessions.values.sorted(by: { $0.startedAt < $1.startedAt })
+    }
+
+    func session(id: UUID) -> GoalSession? {
+        sessions[id]
+    }
+
+    func sessions(from startDate: Date, to endDate: Date) -> [GoalSession] {
+        sessions.values.filter { $0.startedAt >= startDate && $0.startedAt <= endDate }
+    }
+
+    func saveSession(_ session: GoalSession) {
+        sessions[session.id] = session
+    }
+
+    func deleteSession(id: UUID) {
+        sessions.removeValue(forKey: id)
+        reminderEventsBySession.removeValue(forKey: id)
+    }
+
+    func saveReminder(_ event: ReminderEvent) {
+        var events = reminderEventsBySession[event.sessionId] ?? []
+        if let index = events.firstIndex(where: { $0.id == event.id }) {
+            events[index] = event
+        } else {
+            events.append(event)
+        }
+        reminderEventsBySession[event.sessionId] = events
+    }
+
+    func reminders(sessionId: UUID) -> [ReminderEvent] {
+        reminderEventsBySession[sessionId] ?? []
+    }
+
+    func reminder(id: UUID) -> ReminderEvent? {
+        reminderEventsBySession.values
+            .flatMap { $0 }
+            .first(where: { $0.id == id })
+    }
 }
 
 private final class InMemoryReminderRepository: GoalSessionRepository {
     private let store = ReminderStore()
 
     func fetchAll() async throws -> [GoalSession] {
-        await store.sessions.values.sorted(by: { $0.startedAt < $1.startedAt })
+        await store.allSessions()
     }
 
     func fetch(id: UUID) async throws -> GoalSession? {
-        await store.sessions[id]
+        await store.session(id: id)
     }
 
     func fetch(from startDate: Date, to endDate: Date) async throws -> [GoalSession] {
-        await store.sessions.values.filter { $0.startedAt >= startDate && $0.startedAt <= endDate }
+        await store.sessions(from: startDate, to: endDate)
     }
 
     func save(_ session: GoalSession) async throws {
-        await store.sessions.updateValue(session, forKey: session.id)
+        await store.saveSession(session)
     }
 
     func delete(id: UUID) async throws {
-        await store.sessions.removeValue(forKey: id)
-        await store.reminderEventsBySession.removeValue(forKey: id)
+        await store.deleteSession(id: id)
     }
 
     func saveReminderEvent(_ event: ReminderEvent) async throws {
-        var events = await store.reminderEventsBySession[event.sessionId] ?? []
-
-        if let index = events.firstIndex(where: { $0.id == event.id }) {
-            events[index] = event
-        } else {
-            events.append(event)
-        }
-
-        await store.reminderEventsBySession.updateValue(events, forKey: event.sessionId)
+        await store.saveReminder(event)
     }
 
     func fetchReminderEvents(sessionId: UUID) async throws -> [ReminderEvent] {
-        await store.reminderEventsBySession[sessionId] ?? []
+        await store.reminders(sessionId: sessionId)
     }
 
     func fetchReminderEvent(id: UUID) async throws -> ReminderEvent? {
-        let values = await store.reminderEventsBySession.values
-        return values
-            .flatMap { $0 }
-            .first(where: { $0.id == id })
+        await store.reminder(id: id)
     }
 }
 

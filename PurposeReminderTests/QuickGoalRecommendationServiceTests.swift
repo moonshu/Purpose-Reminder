@@ -1,4 +1,5 @@
 import XCTest
+@testable import PurposeReminder
 
 final class QuickGoalRecommendationServiceTests: XCTestCase {
     private let service = QuickGoalRecommendationService()

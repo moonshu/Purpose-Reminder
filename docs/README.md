@@ -20,3 +20,18 @@
 4. `agent-ticket-spec.md`로 티켓 형식 고정
 5. `agent-mvp-ticket-backlog.md`에서 READY 티켓 실행
 6. 매 배포 전 `ios-manual-setup-checklist.md` 점검
+
+## 티켓별 상세 계획 문서 (PR-AG-012 이후)
+- tickets/PR-AG-012-plan.md
+- tickets/PR-AG-013-plan.md
+- tickets/PR-AG-014-plan.md
+- tickets/PR-AG-015-plan.md
+
+## 문서 동기화 규칙 (추가)
+1. 티켓 완료 시 backlog 먼저 갱신
+2. 아키텍처/의존성/체크리스트 동시 갱신
+3. 변경 없음일 때도 근거 기록
+
+## 사람 개입 필요 창구 (추가)
+- 단일 기준: ios-manual-setup-checklist.md
+- 중단 기록: agent-ticket-spec.md의 BLOCKED_MANUAL 포맷
