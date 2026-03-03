@@ -7,6 +7,7 @@ final class OnboardingViewModel: ObservableObject {
         screenTime: .notDetermined,
         notifications: .notDetermined
     )
+    @Published private(set) var screenTimeHint: String?
 
     private let authorizationService: AuthorizationServicing
 
@@ -19,11 +20,34 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     func requestScreenTime() async {
-        let updated = await authorizationService.requestScreenTimeAuthorization()
+        let previous = snapshot.screenTime
+        let result = await authorizationService.requestScreenTimeAuthorization()
         snapshot = AuthorizationSnapshot(
-            screenTime: updated,
+            screenTime: result.status,
             notifications: snapshot.notifications
         )
+
+        if result.status == .approved {
+            screenTimeHint = nil
+            return
+        }
+
+        if let errorDescription = result.errorDescription, !errorDescription.isEmpty {
+            screenTimeHint = "요청 실패: \(errorDescription)"
+            return
+        }
+
+        if previous == .notDetermined && result.status == .notDetermined {
+            screenTimeHint = "권한 창이 뜨지 않으면 실기기 실행 여부와 Family Controls Capability 설정을 확인하세요."
+            return
+        }
+
+        if result.status == .denied {
+            screenTimeHint = "설정 > 스크린 타임에서 권한 상태를 확인하세요."
+            return
+        }
+
+        screenTimeHint = nil
     }
 
     func requestNotifications() async {
@@ -61,6 +85,12 @@ struct OnboardingView: View {
                 status: screenTimeText(viewModel.snapshot.screenTime)
             ) {
                 Task { await viewModel.requestScreenTime() }
+            }
+
+            if let hint = viewModel.screenTimeHint {
+                Text(hint)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             }
 
             permissionRow(

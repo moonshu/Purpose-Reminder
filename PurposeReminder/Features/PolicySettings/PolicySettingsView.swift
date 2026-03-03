@@ -150,9 +150,7 @@ struct PolicySettingsView: View {
     @State private var isPickerPresented = false
 
     init(
-        repository: AppPolicyRepository = SwiftDataAppPolicyRepository(
-            context: SwiftDataStack.shared.mainContext
-        ),
+        repository: AppPolicyRepository,
         appSelectionService: AppSelectionServicing = AppSelectionService(),
         shieldPolicyService: ShieldPolicyServicing = ShieldPolicyService()
     ) {
@@ -162,6 +160,18 @@ struct PolicySettingsView: View {
                 appSelectionService: appSelectionService,
                 shieldPolicyService: shieldPolicyService
             )
+        )
+    }
+
+    @MainActor
+    init(
+        appSelectionService: AppSelectionServicing = AppSelectionService(),
+        shieldPolicyService: ShieldPolicyServicing = ShieldPolicyService()
+    ) {
+        self.init(
+            repository: SwiftDataAppPolicyRepository(context: SwiftDataStack.shared.mainContext),
+            appSelectionService: appSelectionService,
+            shieldPolicyService: shieldPolicyService
         )
     }
 
@@ -234,7 +244,7 @@ struct PolicySettingsView: View {
         .task {
             await viewModel.load()
         }
-        .onChange(of: viewModel.selection) { _ in
+        .onChange(of: viewModel.selection, initial: false) {
             viewModel.syncDraftsWithSelection()
         }
         .alert(

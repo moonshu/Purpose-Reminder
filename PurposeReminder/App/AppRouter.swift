@@ -8,7 +8,7 @@ struct AppRouter: View {
     var body: some View {
         Group {
             if onboardingState.isReadyForMainFlow {
-                Text("Purpose Reminder")
+                MainTabView()
             } else {
                 OnboardingView(
                     authorizationService: onboardingState.authorizationService
@@ -21,6 +21,22 @@ struct AppRouter: View {
         }
         .task {
             await onboardingState.refresh()
+        }
+    }
+}
+
+private struct MainTabView: View {
+    var body: some View {
+        TabView {
+            SessionStartView()
+                .tabItem {
+                    Label("세션", systemImage: "play.circle")
+                }
+
+            PolicySettingsView()
+                .tabItem {
+                    Label("정책", systemImage: "hand.raised.app")
+                }
         }
     }
 }

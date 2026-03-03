@@ -1,5 +1,6 @@
 import Foundation
 import FamilyControls
+import OSLog
 import UserNotifications
 
 enum ScreenTimePermissionStatus: Equatable {
@@ -14,6 +15,11 @@ enum NotificationPermissionStatus: Equatable {
     case notDetermined
 }
 
+struct ScreenTimeAuthorizationRequestResult: Equatable {
+    let status: ScreenTimePermissionStatus
+    let errorDescription: String?
+}
+
 struct AuthorizationSnapshot: Equatable {
     let screenTime: ScreenTimePermissionStatus
     let notifications: NotificationPermissionStatus
@@ -26,7 +32,7 @@ struct AuthorizationSnapshot: Equatable {
 @MainActor
 protocol AuthorizationServicing {
     func fetchCurrentStatus() async -> AuthorizationSnapshot
-    func requestScreenTimeAuthorization() async -> ScreenTimePermissionStatus
+    func requestScreenTimeAuthorization() async -> ScreenTimeAuthorizationRequestResult
     func requestNotificationAuthorization() async -> NotificationPermissionStatus
 }
 
@@ -48,13 +54,21 @@ final class AuthorizationService: AuthorizationServicing {
         )
     }
 
-    func requestScreenTimeAuthorization() async -> ScreenTimePermissionStatus {
+    func requestScreenTimeAuthorization() async -> ScreenTimeAuthorizationRequestResult {
         do {
             try await AuthorizationCenter.shared.requestAuthorization(for: .individual)
+            return ScreenTimeAuthorizationRequestResult(
+                status: mapScreenTimeStatus(AuthorizationCenter.shared.authorizationStatus),
+                errorDescription: nil
+            )
         } catch {
-            // If request throws, keep mapped status so UI can reflect current device state.
+            let message = Self.screenTimeAuthorizationErrorMessage(error)
+            AppLogger.screenTime.error("Screen Time authorization request failed: \(message, privacy: .public)")
+            return ScreenTimeAuthorizationRequestResult(
+                status: mapScreenTimeStatus(AuthorizationCenter.shared.authorizationStatus),
+                errorDescription: message
+            )
         }
-        return mapScreenTimeStatus(AuthorizationCenter.shared.authorizationStatus)
     }
 
     func requestNotificationAuthorization() async -> NotificationPermissionStatus {
@@ -91,7 +105,7 @@ final class AuthorizationService: AuthorizationServicing {
         }
     }
 
-    private static func mapNotificationStatus(_ status: UNAuthorizationStatus) -> NotificationPermissionStatus {
+    nonisolated private static func mapNotificationStatus(_ status: UNAuthorizationStatus) -> NotificationPermissionStatus {
         switch status {
         case .authorized, .provisional, .ephemeral:
             return .authorized
@@ -102,5 +116,16 @@ final class AuthorizationService: AuthorizationServicing {
         @unknown default:
             return .notDetermined
         }
+    }
+
+    private static func screenTimeAuthorizationErrorMessage(_ error: Error) -> String {
+        if let localizedError = error as? LocalizedError,
+           let description = localizedError.errorDescription,
+           !description.isEmpty {
+            return description
+        }
+
+        let fallback = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        return fallback.isEmpty ? "Unknown Screen Time authorization error." : fallback
     }
 }

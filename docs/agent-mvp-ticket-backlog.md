@@ -222,6 +222,8 @@
 
 ## 7. 보강 메모 (추가)
 - 공통 DoD: 타입 에러 0건/테스트 1개+/수동 검증 번호/문서 동기화
+- PR-AG-010 상세 계획: docs/tickets/PR-AG-010-plan.md
+- PR-AG-011 상세 계획: docs/tickets/PR-AG-011-plan.md
 - PR-AG-012 상세 계획: docs/tickets/PR-AG-012-plan.md
 - PR-AG-013 상세 계획: docs/tickets/PR-AG-013-plan.md
 - PR-AG-014 상세 계획: docs/tickets/PR-AG-014-plan.md

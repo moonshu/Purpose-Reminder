@@ -2,6 +2,7 @@
 
 ## 제품 기준 문서
 - `ios-mvp-spec.md`: 제품 범위/사용자 플로우/데이터 모델 기준
+- `onboarding-permission-ux-guide.md`: 랜딩/온보딩/권한 UX 개선 기준
 
 ## 구현 실행 문서
 - `ios-technical-architecture.md`: 코드 구조/모듈 책임/테스트 전략
@@ -21,7 +22,9 @@
 5. `agent-mvp-ticket-backlog.md`에서 READY 티켓 실행
 6. 매 배포 전 `ios-manual-setup-checklist.md` 점검
 
-## 티켓별 상세 계획 문서 (PR-AG-012 이후)
+## 티켓별 상세 계획 문서 (PR-AG-010~015)
+- tickets/PR-AG-010-plan.md
+- tickets/PR-AG-011-plan.md
 - tickets/PR-AG-012-plan.md
 - tickets/PR-AG-013-plan.md
 - tickets/PR-AG-014-plan.md
