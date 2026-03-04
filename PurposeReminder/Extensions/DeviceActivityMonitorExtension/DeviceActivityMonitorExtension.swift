@@ -2,11 +2,6 @@ import DeviceActivity
 import Foundation
 import OSLog
 
-private enum TimeoutStorage {
-    static let appGroupSuiteName = "group.com.purposereminder.shared"
-    static let lastEventKey = "session.timeout.lastEvent"
-}
-
 private struct TimeoutPayload: Codable {
     let activityName: String
     let reason: String
@@ -34,7 +29,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
     }
 
     private func recordTimeoutEvent(activityName: String, reason: String) {
-        guard let defaults = UserDefaults(suiteName: TimeoutStorage.appGroupSuiteName) else {
+        guard let defaults = UserDefaults(suiteName: Constants.AppGroup.suiteName) else {
             logger.error("App Group UserDefaults unavailable for timeout event.")
             return
         }
@@ -47,7 +42,7 @@ final class DeviceActivityMonitorExtension: DeviceActivityMonitor {
 
         do {
             let data = try JSONEncoder().encode(payload)
-            defaults.set(data, forKey: TimeoutStorage.lastEventKey)
+            defaults.set(data, forKey: Constants.AppGroup.timeoutLastEventKey)
         } catch {
             logger.error("Failed to encode timeout event: \(error.localizedDescription, privacy: .public)")
         }

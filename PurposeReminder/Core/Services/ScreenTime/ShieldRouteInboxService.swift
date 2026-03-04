@@ -10,6 +10,7 @@ struct ShieldRouteEvent: Equatable {
     let targetType: String
     let isPolicyManaged: Bool
     let actionAt: TimeInterval
+    let targetTokenData: Data?
 }
 
 protocol ShieldRouteInboxServicing {
@@ -22,6 +23,7 @@ struct ShieldRouteInboxService: ShieldRouteInboxServicing {
         let targetType: String
         let isPolicyManaged: Bool
         let actionAt: TimeInterval
+        let targetTokenData: Data?
     }
 
     private let userDefaults: UserDefaults?
@@ -52,7 +54,8 @@ struct ShieldRouteInboxService: ShieldRouteInboxServicing {
             route: route,
             targetType: payload.targetType,
             isPolicyManaged: payload.isPolicyManaged,
-            actionAt: payload.actionAt
+            actionAt: payload.actionAt,
+            targetTokenData: payload.targetTokenData
         )
     }
 }

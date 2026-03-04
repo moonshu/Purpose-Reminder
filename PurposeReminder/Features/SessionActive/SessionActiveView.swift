@@ -45,6 +45,7 @@ final class SessionActiveViewModel: ObservableObject {
         do {
             activeSession = try await fetchLatestActiveSession()
             recalculateRemainingSeconds()
+            await timeoutExpiredSessionIfNeeded()
             startTimerIfNeeded()
             errorMessage = nil
         } catch {
@@ -137,6 +138,14 @@ final class SessionActiveViewModel: ObservableObject {
 
     private func tick() {
         recalculateRemainingSeconds()
+        guard activeSession != nil, remainingSeconds == 0 else {
+            return
+        }
+
+        stopTimer()
+        Task { [weak self] in
+            await self?.timeoutExpiredSessionIfNeeded()
+        }
     }
 
     private func recalculateRemainingSeconds() {
@@ -148,6 +157,24 @@ final class SessionActiveViewModel: ObservableObject {
         let totalDuration = max(0, activeSession.plannedDurationMinutes * 60)
         let elapsed = max(0, Int(nowProvider().timeIntervalSince(activeSession.startedAt)))
         remainingSeconds = max(0, totalDuration - elapsed)
+    }
+
+    private func timeoutExpiredSessionIfNeeded() async {
+        guard let activeSession, remainingSeconds == 0 else {
+            return
+        }
+
+        do {
+            try await coordinator.attachToActiveSessionIfNeeded(sessionId: activeSession.id)
+            _ = try await coordinator.timeoutSession()
+            self.activeSession = nil
+            self.remainingSeconds = 0
+            self.successMessage = "세션 시간이 종료되어 자동으로 마감했습니다."
+            self.errorMessage = nil
+            stopTimer()
+        } catch {
+            self.errorMessage = "세션 만료 처리를 완료하지 못했습니다."
+        }
     }
 }
 
@@ -164,12 +191,33 @@ struct SessionActiveView: View {
 
     var body: some View {
         List {
+            if let errorMessage = viewModel.errorMessage {
+                Section {
+                    InlineMessageBanner(
+                        text: errorMessage,
+                        style: .error
+                    )
+                }
+            }
+
+            if let successMessage = viewModel.successMessage {
+                Section {
+                    InlineMessageBanner(
+                        text: successMessage,
+                        style: .success
+                    )
+                }
+            }
+
             if let activeSession = viewModel.activeSession {
                 Section("진행 중 세션") {
                     Text(activeSession.goalTextSnapshot)
                         .font(.headline)
 
-                    LabeledContent("남은 시간", value: remainingTimeLabel)
+                    LabeledContent("남은 시간") {
+                        Text(remainingTimeLabel)
+                            .monospacedDigit()
+                    }
                     LabeledContent("시작 시각", value: activeSession.startedAt.formatted(date: .abbreviated, time: .shortened))
                     LabeledContent("계획 시간", value: "\(activeSession.plannedDurationMinutes)분")
                 }
@@ -192,8 +240,11 @@ struct SessionActiveView: View {
                 }
             } else if !viewModel.isLoading {
                 Section {
-                    Text("진행 중인 세션이 없습니다.")
-                        .foregroundStyle(.secondary)
+                    EmptyStateCard(
+                        iconName: "timer",
+                        title: "진행 중인 세션이 없습니다.",
+                        subtitle: "세션 시작 화면에서 목표를 선택하면 여기서 진행 상황을 확인할 수 있습니다."
+                    )
                 }
             }
         }
@@ -208,28 +259,6 @@ struct SessionActiveView: View {
         }
         .onDisappear {
             viewModel.stopTimer()
-        }
-        .alert(
-            "오류",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { _ in viewModel.errorMessage = nil }
-            )
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
-        .alert(
-            "처리 완료",
-            isPresented: Binding(
-                get: { viewModel.successMessage != nil },
-                set: { _ in viewModel.successMessage = nil }
-            )
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(viewModel.successMessage ?? "")
         }
     }
 

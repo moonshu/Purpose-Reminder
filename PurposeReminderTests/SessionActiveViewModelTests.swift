@@ -111,6 +111,35 @@ final class SessionActiveViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.activeSession)
         XCTAssertEqual(viewModel.remainingSeconds, 0)
     }
+
+    func testLoadAutoTimeoutsExpiredActiveSession() async throws {
+        let repository = InMemorySessionActiveRepository()
+        let now = Date(timeIntervalSince1970: 1_700_001_200)
+        let session = GoalSession(
+            targetAppTokenData: Data("com.example.timeout".utf8),
+            templateId: nil,
+            goalTextSnapshot: "timeout",
+            startedAt: now.addingTimeInterval(-1_200),
+            endedAt: nil,
+            status: .active,
+            plannedDurationMinutes: 20
+        )
+        try await repository.save(session)
+
+        let coordinator = SessionCoordinator(repository: repository)
+        let viewModel = SessionActiveViewModel(
+            repository: repository,
+            coordinator: coordinator,
+            nowProvider: { now }
+        )
+
+        await viewModel.load()
+
+        let saved = try await repository.fetch(id: session.id)
+        XCTAssertEqual(saved?.status, .timedOut)
+        XCTAssertNil(viewModel.activeSession)
+        XCTAssertEqual(viewModel.remainingSeconds, 0)
+    }
 }
 
 private actor SessionActiveStore {

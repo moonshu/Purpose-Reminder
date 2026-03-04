@@ -11,6 +11,7 @@ enum SessionCoordinatorError: LocalizedError, Equatable {
     case invalidTransition(from: SessionCoordinatorState, event: String)
     case activeSessionMissing
     case sessionNotActive
+    case activeSessionAlreadyExists
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +21,8 @@ enum SessionCoordinatorError: LocalizedError, Equatable {
             return "활성 세션을 찾을 수 없습니다."
         case .sessionNotActive:
             return "세션이 active 상태가 아닙니다."
+        case .activeSessionAlreadyExists:
+            return "이미 진행 중인 세션이 있어 새 세션을 시작할 수 없습니다."
         }
     }
 }
@@ -54,6 +57,13 @@ final class SessionCoordinator {
     ) async throws -> GoalSession {
         guard case .pendingGoal = state else {
             throw SessionCoordinatorError.invalidTransition(from: state, event: "startSession")
+        }
+
+        let hasExistingActiveSession = try await repository.fetchAll()
+            .contains { $0.status == .active && $0.endedAt == nil }
+        if hasExistingActiveSession {
+            state = .idle
+            throw SessionCoordinatorError.activeSessionAlreadyExists
         }
 
         let session = GoalSession(

@@ -6,13 +6,15 @@ final class AppRuntimeStateTests: XCTestCase {
     func testStartGoalRouteSelectsSessionTab() async {
         let repository = InMemoryAppRuntimeSessionRepository()
         let coordinator = SessionCoordinator(repository: repository)
+        let targetTokenData = Data("target-token".utf8)
         let state = AppRuntimeState(
             shieldRouteInbox: ShieldRouteInboxStub(
                 event: ShieldRouteEvent(
                     route: .startGoalSelection,
                     targetType: "application",
                     isPolicyManaged: true,
-                    actionAt: 1_700_000_000
+                    actionAt: 1_700_000_000,
+                    targetTokenData: targetTokenData
                 )
             ),
             timeoutInbox: SessionTimeoutInboxStub(event: nil),
@@ -24,6 +26,7 @@ final class AppRuntimeStateTests: XCTestCase {
         await state.handleAppActivated()
 
         XCTAssertEqual(state.selectedTab, .session)
+        XCTAssertEqual(state.preferredSessionTargetTokenData, targetTokenData)
     }
 
     func testDismissRouteKeepsSelectedTab() async {
@@ -35,7 +38,8 @@ final class AppRuntimeStateTests: XCTestCase {
                     route: .dismissShield,
                     targetType: "application",
                     isPolicyManaged: true,
-                    actionAt: 1_700_000_000
+                    actionAt: 1_700_000_000,
+                    targetTokenData: nil
                 )
             ),
             timeoutInbox: SessionTimeoutInboxStub(event: nil),

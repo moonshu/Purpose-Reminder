@@ -111,6 +111,15 @@ struct HistoryView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        InlineMessageBanner(
+                            text: errorMessage,
+                            style: .error
+                        )
+                    }
+                }
+
                 Section("오늘 요약") {
                     LabeledContent("총 세션", value: "\(viewModel.summary.totalToday)개")
                     LabeledContent(
@@ -125,8 +134,11 @@ struct HistoryView: View {
 
                 Section("최근 7일") {
                     if viewModel.recentSessions.isEmpty && !viewModel.isLoading {
-                        Text("아직 기록이 없습니다.")
-                            .foregroundStyle(.secondary)
+                        EmptyStateCard(
+                            iconName: "clock.badge.questionmark",
+                            title: "아직 기록이 없습니다.",
+                            subtitle: "첫 세션을 시작하면 여기에서 완료율과 최근 기록을 확인할 수 있습니다."
+                        )
                     } else {
                         ForEach(viewModel.recentSessions) { session in
                             SessionHistoryRow(session: session)
@@ -143,17 +155,6 @@ struct HistoryView: View {
         }
         .task {
             await viewModel.load()
-        }
-        .alert(
-            "오류",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { _ in viewModel.errorMessage = nil }
-            )
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
         }
     }
 }

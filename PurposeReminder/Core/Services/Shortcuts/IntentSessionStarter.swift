@@ -27,15 +27,18 @@ final class IntentSessionStarter {
     private let policyRepository: AppPolicyRepository
     private let templateRepository: GoalTemplateRepository
     private let sessionCoordinator: SessionCoordinator
+    private let reminderScheduler: ReminderScheduling
 
     init(
         policyRepository: AppPolicyRepository,
         templateRepository: GoalTemplateRepository,
-        sessionCoordinator: SessionCoordinator
+        sessionCoordinator: SessionCoordinator,
+        reminderScheduler: ReminderScheduling
     ) {
         self.policyRepository = policyRepository
         self.templateRepository = templateRepository
         self.sessionCoordinator = sessionCoordinator
+        self.reminderScheduler = reminderScheduler
     }
 
     convenience init() {
@@ -44,11 +47,13 @@ final class IntentSessionStarter {
         let templateRepository = SwiftDataGoalTemplateRepository(context: context)
         let sessionRepository = SwiftDataGoalSessionRepository(context: context)
         let sessionCoordinator = SessionCoordinator(repository: sessionRepository)
+        let reminderScheduler = ReminderScheduler(repository: sessionRepository)
 
         self.init(
             policyRepository: policyRepository,
             templateRepository: templateRepository,
-            sessionCoordinator: sessionCoordinator
+            sessionCoordinator: sessionCoordinator,
+            reminderScheduler: reminderScheduler
         )
     }
 
@@ -75,10 +80,18 @@ final class IntentSessionStarter {
                 plannedDurationMinutes: duration
             )
 
+            let reminderWarning = await scheduleReminderIfPossible(
+                session: session,
+                reminderOffsetMinutes: policy.reminderOffsetMinutes
+            )
+
+            let messageSuffix = reminderWarning.map { " \($0)" } ?? ""
             return .success(
-                message: "\"\(session.goalTextSnapshot)\" 세션이 시작되었습니다. (\(session.plannedDurationMinutes)분)",
+                message: "\"\(session.goalTextSnapshot)\" 세션이 시작되었습니다. (\(session.plannedDurationMinutes)분)\(messageSuffix)",
                 session: session
             )
+        } catch SessionCoordinatorError.activeSessionAlreadyExists {
+            return .failure(message: "이미 진행 중인 세션이 있어 새 세션을 시작할 수 없습니다.")
         } catch {
             return .failure(message: "세션 시작에 실패했습니다. 잠시 후 다시 시도해 주세요.")
         }
@@ -106,12 +119,19 @@ final class IntentSessionStarter {
                 plannedDurationMinutes: policy.defaultDurationMinutes
             )
 
+            let reminderWarning = await scheduleReminderIfPossible(
+                session: session,
+                reminderOffsetMinutes: policy.reminderOffsetMinutes
+            )
             try await bumpFavoriteUsage(for: favorite, at: session.startedAt)
 
+            let messageSuffix = reminderWarning.map { " \($0)" } ?? ""
             return .success(
-                message: "\"\(session.goalTextSnapshot)\" 즐겨찾기 세션이 시작되었습니다.",
+                message: "\"\(session.goalTextSnapshot)\" 즐겨찾기 세션이 시작되었습니다.\(messageSuffix)",
                 session: session
             )
+        } catch SessionCoordinatorError.activeSessionAlreadyExists {
+            return .failure(message: "이미 진행 중인 세션이 있어 새 세션을 시작할 수 없습니다.")
         } catch {
             return .failure(message: "즐겨찾기 세션 시작에 실패했습니다. 잠시 후 다시 시도해 주세요.")
         }
@@ -169,5 +189,20 @@ final class IntentSessionStarter {
         updated.useCount += 1
         updated.lastUsedAt = startedAt
         try await templateRepository.save(updated)
+    }
+
+    private func scheduleReminderIfPossible(
+        session: GoalSession,
+        reminderOffsetMinutes: Int
+    ) async -> String? {
+        do {
+            _ = try await reminderScheduler.scheduleReminder(
+                session: session,
+                reminderOffsetMinutes: reminderOffsetMinutes
+            )
+            return nil
+        } catch {
+            return "리마인드를 예약하지 못했지만 세션은 시작되었습니다."
+        }
     }
 }

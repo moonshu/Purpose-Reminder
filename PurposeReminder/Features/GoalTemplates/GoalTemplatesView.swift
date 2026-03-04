@@ -235,6 +235,15 @@ struct GoalTemplatesView: View {
 
     var body: some View {
         List {
+            if let errorMessage = viewModel.errorMessage {
+                Section {
+                    InlineMessageBanner(
+                        text: errorMessage,
+                        style: .error
+                    )
+                }
+            }
+
             Section("새 템플릿") {
                 TextField("예: DM 3개만 답장", text: $viewModel.draftText)
                 Button("추가") {
@@ -254,8 +263,11 @@ struct GoalTemplatesView: View {
 
             Section("템플릿 목록") {
                 if viewModel.filteredTemplates.isEmpty && !viewModel.isLoading {
-                    Text("등록된 템플릿이 없습니다.")
-                        .foregroundStyle(.secondary)
+                    EmptyStateCard(
+                        iconName: "text.badge.plus",
+                        title: "등록된 템플릿이 없습니다.",
+                        subtitle: "자주 하는 목표 문구를 추가하면 세션을 더 빠르게 시작할 수 있습니다."
+                    )
                 } else {
                     ForEach(viewModel.filteredTemplates) { template in
                         VStack(alignment: .leading, spacing: 6) {
@@ -342,17 +354,6 @@ struct GoalTemplatesView: View {
                     }
                 }
             }
-        }
-        .alert(
-            "오류",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { _ in viewModel.errorMessage = nil }
-            )
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
         }
     }
 }

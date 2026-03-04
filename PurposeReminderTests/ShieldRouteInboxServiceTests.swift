@@ -6,12 +6,14 @@ final class ShieldRouteInboxServiceTests: XCTestCase {
         let suiteName = "ShieldRouteInboxServiceTests.\(UUID().uuidString)"
         let defaults = try makeDefaults(suiteName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
+        let targetTokenData = Data("encoded-target".utf8)
 
         let payload: [String: Any] = [
             "route": "startGoalSelection",
             "targetType": "application",
             "isPolicyManaged": true,
-            "actionAt": 1_700_000_000.0
+            "actionAt": 1_700_000_000.0,
+            "targetTokenData": targetTokenData.base64EncodedString()
         ]
         let data = try JSONSerialization.data(withJSONObject: payload)
         defaults.set(data, forKey: Constants.AppGroup.shieldLastEventKey)
@@ -22,6 +24,7 @@ final class ShieldRouteInboxServiceTests: XCTestCase {
         XCTAssertEqual(event?.route, .startGoalSelection)
         XCTAssertEqual(event?.targetType, "application")
         XCTAssertEqual(event?.isPolicyManaged, true)
+        XCTAssertEqual(event?.targetTokenData, targetTokenData)
         XCTAssertNil(defaults.data(forKey: Constants.AppGroup.shieldLastEventKey))
     }
 

@@ -299,6 +299,13 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 16) {
             stepHeader
 
+            if let errorMessage = viewModel.errorMessage {
+                InlineMessageBanner(
+                    text: errorMessage,
+                    style: .error
+                )
+            }
+
             ScrollView {
                 stepBody
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -314,17 +321,6 @@ struct OnboardingView: View {
         .onChange(of: viewModel.selection, initial: false) {
             viewModel.clearPolicyFeedback()
         }
-        .alert(
-            "오류",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { _ in viewModel.errorMessage = nil }
-            )
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
     }
 
     private var stepHeader: some View {
@@ -335,6 +331,12 @@ struct OnboardingView: View {
                 .padding(.vertical, 6)
                 .background(Color(.secondarySystemBackground))
                 .clipShape(Capsule())
+
+            ProgressView(
+                value: Double(viewModel.step.rawValue + 1),
+                total: Double(OnboardingStep.allCases.count)
+            )
+            .tint(.blue)
 
             Text(viewModel.step.title)
                 .font(.title2.bold())

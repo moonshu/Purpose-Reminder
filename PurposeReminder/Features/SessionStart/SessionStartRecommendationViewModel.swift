@@ -7,6 +7,7 @@ final class SessionStartRecommendationViewModel: ObservableObject {
     @Published private(set) var shouldShowCustomGoalInput = true
     @Published var customGoalText = ""
     @Published private(set) var startedSession: GoalSession?
+    @Published private(set) var resumableSession: GoalSession?
     @Published private(set) var isLoading = false
     @Published private(set) var isStarting = false
     @Published var errorMessage: String?
@@ -14,6 +15,7 @@ final class SessionStartRecommendationViewModel: ObservableObject {
 
     private let templateRepository: GoalTemplateRepository
     private let policyRepository: AppPolicyRepository
+    private let sessionRepository: GoalSessionRepository
     private let sessionCoordinator: SessionCoordinator
     private let reminderScheduler: ReminderScheduling
     private let recommendationService: QuickGoalRecommendationServicing
@@ -25,6 +27,7 @@ final class SessionStartRecommendationViewModel: ObservableObject {
     init(
         templateRepository: GoalTemplateRepository,
         policyRepository: AppPolicyRepository,
+        sessionRepository: GoalSessionRepository,
         sessionCoordinator: SessionCoordinator,
         reminderScheduler: ReminderScheduling,
         recommendationService: QuickGoalRecommendationServicing = QuickGoalRecommendationService(),
@@ -32,6 +35,7 @@ final class SessionStartRecommendationViewModel: ObservableObject {
     ) {
         self.templateRepository = templateRepository
         self.policyRepository = policyRepository
+        self.sessionRepository = sessionRepository
         self.sessionCoordinator = sessionCoordinator
         self.reminderScheduler = reminderScheduler
         self.recommendationService = recommendationService
@@ -49,6 +53,7 @@ final class SessionStartRecommendationViewModel: ObservableObject {
         self.init(
             templateRepository: templateRepository,
             policyRepository: policyRepository,
+            sessionRepository: sessionRepository,
             sessionCoordinator: sessionCoordinator,
             reminderScheduler: reminderScheduler,
             recommendationService: QuickGoalRecommendationService(),
@@ -68,6 +73,8 @@ final class SessionStartRecommendationViewModel: ObservableObject {
                 selectedTargetAppTokenData = nil
                 recommendations = []
                 shouldShowCustomGoalInput = true
+                resumableSession = nil
+                warningMessage = nil
                 errorMessage = "활성화된 앱 정책이 없습니다. 대상 앱 설정에서 정책을 먼저 저장해 주세요."
                 return
             }
@@ -75,10 +82,19 @@ final class SessionStartRecommendationViewModel: ObservableObject {
             selectedPolicy = policy
             selectedTargetAppTokenData = policy.appTokenData
 
+            if let activeSession = try await fetchLatestActiveSession() {
+                resumableSession = activeSession
+                warningMessage = "이미 진행 중인 세션이 있습니다. 이어서 진행해 주세요."
+            } else {
+                resumableSession = nil
+                warningMessage = nil
+            }
+
             let templates = try await templateRepository.fetchAll()
             applyRecommendations(templates: templates)
             errorMessage = nil
         } catch {
+            resumableSession = nil
             errorMessage = "빠른 목표를 불러오지 못했습니다. 다시 시도해 주세요."
         }
     }
@@ -110,7 +126,13 @@ final class SessionStartRecommendationViewModel: ObservableObject {
     }
 
     var canStartCustomGoal: Bool {
-        !customGoalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isStarting
+        !customGoalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !isStarting
+            && !isStartLocked
+    }
+
+    var isStartLocked: Bool {
+        resumableSession != nil
     }
 
     private func startSession(
@@ -120,6 +142,11 @@ final class SessionStartRecommendationViewModel: ObservableObject {
     ) async {
         guard let targetAppTokenData = selectedTargetAppTokenData else {
             errorMessage = "대상 앱 정책이 없어 세션을 시작할 수 없습니다."
+            return
+        }
+
+        guard !isStartLocked else {
+            errorMessage = "이미 진행 중인 세션이 있어 새로 시작할 수 없습니다."
             return
         }
 
@@ -147,6 +174,7 @@ final class SessionStartRecommendationViewModel: ObservableObject {
                 plannedDurationMinutes: duration
             )
             startedSession = session
+            resumableSession = session
             errorMessage = nil
 
             let reminderOffset = selectedPolicy?.reminderOffsetMinutes ?? Constants.Session.defaultReminderOffsetMinutes
@@ -171,6 +199,9 @@ final class SessionStartRecommendationViewModel: ObservableObject {
                     warningMessage = "목표 사용 기록 저장에 실패했습니다."
                 }
             }
+        } catch SessionCoordinatorError.activeSessionAlreadyExists {
+            resumableSession = try? await fetchLatestActiveSession()
+            errorMessage = "이미 진행 중인 세션이 있어 새로 시작할 수 없습니다."
         } catch {
             errorMessage = "세션 시작에 실패했습니다. 다시 시도해 주세요."
         }
@@ -196,5 +227,17 @@ final class SessionStartRecommendationViewModel: ObservableObject {
         }
 
         return sorted.first
+    }
+
+    private func fetchLatestActiveSession() async throws -> GoalSession? {
+        try await sessionRepository.fetchAll()
+            .filter { $0.status == .active && $0.endedAt == nil }
+            .sorted { lhs, rhs in
+                if lhs.startedAt != rhs.startedAt {
+                    return lhs.startedAt > rhs.startedAt
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .first
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionStartView: View {
     @StateObject private var viewModel: SessionStartRecommendationViewModel
+    @State private var shouldNavigateToActiveSession = false
 
     init(preferredAppTokenData: Data? = nil) {
         _viewModel = StateObject(
@@ -14,10 +15,31 @@ struct SessionStartView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let errorMessage = viewModel.errorMessage {
+                    Section {
+                        InlineMessageBanner(
+                            text: errorMessage,
+                            style: .error
+                        )
+                    }
+                }
+
+                if let warningMessage = viewModel.warningMessage {
+                    Section {
+                        InlineMessageBanner(
+                            text: warningMessage,
+                            style: .warning
+                        )
+                    }
+                }
+
                 Section {
                     if viewModel.recommendations.isEmpty && !viewModel.isLoading {
-                        Text("추천 가능한 빠른 목표가 없습니다.")
-                            .foregroundStyle(.secondary)
+                        EmptyStateCard(
+                            iconName: "sparkles",
+                            title: "추천 가능한 빠른 목표가 없습니다.",
+                            subtitle: "목표 템플릿을 추가하거나 세션을 한 번 시작하면 추천이 정교해집니다."
+                        )
                     } else {
                         ForEach(viewModel.recommendations) { recommendation in
                             Button {
@@ -33,7 +55,7 @@ struct SessionStartView: View {
                                 }
                                 .padding(.vertical, 2)
                             }
-                            .disabled(viewModel.isStarting)
+                            .disabled(viewModel.isStarting || viewModel.isStartLocked)
                         }
                     }
                 } header: {
@@ -50,31 +72,21 @@ struct SessionStartView: View {
                             axis: .vertical
                         )
                         .lineLimit(2...4)
-
-                        Button("새 목표로 시작") {
-                            Task { await viewModel.startFromCustomGoal() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!viewModel.canStartCustomGoal)
                     }
                 }
 
-                if let startedSession = viewModel.startedSession {
-                    Section("시작됨") {
-                        Text(startedSession.goalTextSnapshot)
+                if let activeSession = viewModel.resumableSession ?? viewModel.startedSession {
+                    Section("진행 중 세션") {
+                        Text(activeSession.goalTextSnapshot)
                             .font(.headline)
 
-                        Text("계획 시간: \(startedSession.plannedDurationMinutes)분")
+                        Text("계획 시간: \(activeSession.plannedDurationMinutes)분")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
-                    }
-                }
 
-                if let warningMessage = viewModel.warningMessage {
-                    Section("안내") {
-                        Text(warningMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.orange)
+                        Button("진행 화면으로 이동") {
+                            shouldNavigateToActiveSession = true
+                        }
                     }
                 }
 
@@ -94,20 +106,31 @@ struct SessionStartView: View {
                     ProgressView()
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                if viewModel.shouldShowCustomGoalInput {
+                    Button("새 목표로 시작") {
+                        Task { await viewModel.startFromCustomGoal() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!viewModel.canStartCustomGoal)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial)
+                }
+            }
+            .navigationDestination(isPresented: $shouldNavigateToActiveSession) {
+                SessionActiveView()
+            }
         }
         .task {
             await viewModel.load()
         }
-        .alert(
-            "오류",
-            isPresented: Binding(
-                get: { viewModel.errorMessage != nil },
-                set: { _ in viewModel.errorMessage = nil }
-            )
-        ) {
-            Button("확인", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
+        .onChange(of: viewModel.startedSession?.id) { _, sessionId in
+            guard sessionId != nil else {
+                return
+            }
+            shouldNavigateToActiveSession = true
         }
     }
 

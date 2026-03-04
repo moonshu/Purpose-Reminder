@@ -17,7 +17,11 @@ struct AppRouter: View {
     var body: some View {
         Group {
             if onboardingState.isReadyForMainFlow {
-                MainTabView(selectedTab: $runtimeState.selectedTab)
+                MainTabView(
+                    selectedTab: $runtimeState.selectedTab,
+                    preferredAppTokenData: $runtimeState.preferredSessionTargetTokenData,
+                    sessionStartRouteNonce: $runtimeState.sessionStartRouteNonce
+                )
             } else {
                 OnboardingView(
                     authorizationService: onboardingState.authorizationService
@@ -52,10 +56,13 @@ struct AppRouter: View {
 
 private struct MainTabView: View {
     @Binding var selectedTab: MainTab
+    @Binding var preferredAppTokenData: Data?
+    @Binding var sessionStartRouteNonce: UUID
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            SessionStartView()
+            SessionStartView(preferredAppTokenData: preferredAppTokenData)
+                .id(sessionStartRouteNonce)
                 .tag(MainTab.session)
                 .tabItem {
                     Label("세션", systemImage: "play.circle")
@@ -79,6 +86,8 @@ private struct MainTabView: View {
 @MainActor
 final class AppRuntimeState: ObservableObject {
     @Published var selectedTab: MainTab = .session
+    @Published var preferredSessionTargetTokenData: Data?
+    @Published var sessionStartRouteNonce = UUID()
 
     private let shieldRouteInbox: ShieldRouteInboxServicing
     private let timeoutInbox: SessionTimeoutInboxServicing
@@ -119,6 +128,8 @@ final class AppRuntimeState: ObservableObject {
 
         switch event.route {
         case .startGoalSelection:
+            preferredSessionTargetTokenData = event.targetTokenData
+            sessionStartRouteNonce = UUID()
             selectedTab = .session
         case .dismissShield:
             break

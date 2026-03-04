@@ -20,6 +20,7 @@ final class SessionStartRecommendationViewModelTests: XCTestCase {
         let viewModel = SessionStartRecommendationViewModel(
             templateRepository: templateRepository,
             policyRepository: policyRepository,
+            sessionRepository: sessionRepository,
             sessionCoordinator: coordinator,
             reminderScheduler: reminderScheduler,
             recommendationService: QuickGoalRecommendationService()
@@ -54,6 +55,7 @@ final class SessionStartRecommendationViewModelTests: XCTestCase {
         let viewModel = SessionStartRecommendationViewModel(
             templateRepository: templateRepository,
             policyRepository: policyRepository,
+            sessionRepository: sessionRepository,
             sessionCoordinator: coordinator,
             reminderScheduler: reminderScheduler,
             recommendationService: QuickGoalRecommendationService()
@@ -67,6 +69,48 @@ final class SessionStartRecommendationViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.warningMessage, "리마인드를 예약하지 못했습니다. 세션은 계속 진행됩니다.")
         XCTAssertEqual(reminderScheduler.scheduledCalls.count, 1)
+    }
+
+    func testLoadLocksNewStartWhenActiveSessionExists() async throws {
+        let policy = AppPolicy(
+            appTokenData: Data("com.example.instagram".utf8),
+            isActive: true,
+            defaultDurationMinutes: 20,
+            reminderOffsetMinutes: 5,
+            defaultTemplateId: nil
+        )
+        let policyRepository = StubAppPolicyRepository(policies: [policy])
+        let templateRepository = StubGoalTemplateRepository(templates: [])
+        let sessionRepository = InMemoryGoalSessionRepository()
+        let active = GoalSession(
+            targetAppTokenData: policy.appTokenData,
+            templateId: nil,
+            goalTextSnapshot: "existing",
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            endedAt: nil,
+            status: .active,
+            plannedDurationMinutes: 20
+        )
+        try await sessionRepository.save(active)
+
+        let coordinator = SessionCoordinator(repository: sessionRepository)
+        let reminderScheduler = ReminderSchedulerSpy()
+        let viewModel = SessionStartRecommendationViewModel(
+            templateRepository: templateRepository,
+            policyRepository: policyRepository,
+            sessionRepository: sessionRepository,
+            sessionCoordinator: coordinator,
+            reminderScheduler: reminderScheduler,
+            recommendationService: QuickGoalRecommendationService()
+        )
+
+        await viewModel.load()
+        viewModel.customGoalText = "새 목표"
+        await viewModel.startFromCustomGoal()
+
+        XCTAssertEqual(viewModel.resumableSession?.id, active.id)
+        XCTAssertEqual(viewModel.errorMessage, "이미 진행 중인 세션이 있어 새로 시작할 수 없습니다.")
+        XCTAssertEqual(reminderScheduler.scheduledCalls.count, 0)
     }
 }
 

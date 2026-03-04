@@ -149,6 +149,37 @@ final class SessionCoordinatorTests: XCTestCase {
             XCTAssertEqual(error, .sessionNotActive)
         }
     }
+
+    func testStartSessionFailsWhenAnotherActiveSessionAlreadyExists() async throws {
+        let repository = InMemoryGoalSessionRepository()
+        let coordinator = SessionCoordinator(repository: repository, timeProvider: FixedTimeProvider())
+
+        let existing = GoalSession(
+            targetAppTokenData: Data("com.example.instagram".utf8),
+            templateId: nil,
+            goalTextSnapshot: "existing",
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            endedAt: nil,
+            status: .active,
+            plannedDurationMinutes: 20
+        )
+        try await repository.save(existing)
+
+        try coordinator.beginGoalSelection()
+
+        do {
+            _ = try await coordinator.startSession(
+                targetAppTokenData: Data("com.example.youtube".utf8),
+                templateId: nil,
+                goalText: "new",
+                plannedDurationMinutes: 15
+            )
+            XCTFail("expected activeSessionAlreadyExists")
+        } catch let error as SessionCoordinatorError {
+            XCTAssertEqual(error, .activeSessionAlreadyExists)
+            XCTAssertEqual(coordinator.state, .idle)
+        }
+    }
 }
 
 private struct FixedTimeProvider: TimeProviderProtocol {

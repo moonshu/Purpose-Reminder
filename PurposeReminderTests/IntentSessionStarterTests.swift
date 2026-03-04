@@ -35,10 +35,12 @@ final class IntentSessionStarterTests: XCTestCase {
         )
         let repository = InMemoryIntentGoalSessionRepository()
         let coordinator = SessionCoordinator(repository: repository)
+        let reminderScheduler = IntentReminderSchedulerSpy()
         let starter = IntentSessionStarter(
             policyRepository: StubIntentPolicyRepository(policies: [policy]),
             templateRepository: StubIntentTemplateRepository(templates: []),
-            sessionCoordinator: coordinator
+            sessionCoordinator: coordinator,
+            reminderScheduler: reminderScheduler
         )
 
         let result = await starter.startQuick(
@@ -53,16 +55,49 @@ final class IntentSessionStarterTests: XCTestCase {
         let sessions = try await repository.fetchAll()
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions.first?.goalTextSnapshot, "영상 하나만 확인")
+        XCTAssertEqual(reminderScheduler.calls.count, 1)
+        XCTAssertEqual(reminderScheduler.calls.first?.reminderOffsetMinutes, 5)
+    }
+
+    func testQuickStartKeepsSessionWhenReminderSchedulingFails() async {
+        let policy = AppPolicy(
+            appTokenData: Data("com.example.youtube".utf8),
+            isActive: true,
+            defaultDurationMinutes: 25,
+            reminderOffsetMinutes: 5,
+            defaultTemplateId: nil
+        )
+        let repository = InMemoryIntentGoalSessionRepository()
+        let coordinator = SessionCoordinator(repository: repository)
+        let reminderScheduler = IntentReminderSchedulerSpy()
+        reminderScheduler.shouldThrow = true
+        let starter = IntentSessionStarter(
+            policyRepository: StubIntentPolicyRepository(policies: [policy]),
+            templateRepository: StubIntentTemplateRepository(templates: []),
+            sessionCoordinator: coordinator,
+            reminderScheduler: reminderScheduler
+        )
+
+        let result = await starter.startQuick(
+            goalText: "영상 하나만 확인",
+            durationMinutes: -1
+        )
+
+        XCTAssertTrue(result.didStartSession)
+        XCTAssertTrue(result.message.contains("리마인드를 예약하지 못했지만 세션은 시작되었습니다."))
+        XCTAssertEqual(reminderScheduler.calls.count, 1)
     }
 
     func testQuickStartFailsWhenSessionAlreadyActive() async {
         let policy = AppPolicy(appTokenData: Data("com.example.reddit".utf8))
         let repository = InMemoryIntentGoalSessionRepository()
         let coordinator = SessionCoordinator(repository: repository)
+        let reminderScheduler = IntentReminderSchedulerSpy()
         let starter = IntentSessionStarter(
             policyRepository: StubIntentPolicyRepository(policies: [policy]),
             templateRepository: StubIntentTemplateRepository(templates: []),
-            sessionCoordinator: coordinator
+            sessionCoordinator: coordinator,
+            reminderScheduler: reminderScheduler
         )
 
         let first = await starter.startQuick(goalText: "첫 세션", durationMinutes: 20)
@@ -74,6 +109,36 @@ final class IntentSessionStarterTests: XCTestCase {
         XCTAssertEqual(second.message, "이미 진행 중인 세션이 있어 새 세션을 시작할 수 없습니다.")
     }
 
+    func testQuickStartFailsWhenRepositoryAlreadyHasActiveSession() async throws {
+        let policy = AppPolicy(appTokenData: Data("com.example.reddit".utf8))
+        let repository = InMemoryIntentGoalSessionRepository()
+        let existing = GoalSession(
+            targetAppTokenData: policy.appTokenData,
+            templateId: nil,
+            goalTextSnapshot: "existing",
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            endedAt: nil,
+            status: .active,
+            plannedDurationMinutes: 20
+        )
+        try await repository.save(existing)
+
+        let coordinator = SessionCoordinator(repository: repository)
+        let reminderScheduler = IntentReminderSchedulerSpy()
+        let starter = IntentSessionStarter(
+            policyRepository: StubIntentPolicyRepository(policies: [policy]),
+            templateRepository: StubIntentTemplateRepository(templates: []),
+            sessionCoordinator: coordinator,
+            reminderScheduler: reminderScheduler
+        )
+
+        let result = await starter.startQuick(goalText: "새 세션", durationMinutes: 20)
+
+        XCTAssertFalse(result.didStartSession)
+        XCTAssertEqual(result.message, "이미 진행 중인 세션이 있어 새 세션을 시작할 수 없습니다.")
+        XCTAssertEqual(reminderScheduler.calls.count, 0)
+    }
+
     private func makeStarter(
         policies: [AppPolicy],
         templates: [GoalTemplate]
@@ -83,7 +148,8 @@ final class IntentSessionStarterTests: XCTestCase {
         return IntentSessionStarter(
             policyRepository: StubIntentPolicyRepository(policies: policies),
             templateRepository: StubIntentTemplateRepository(templates: templates),
-            sessionCoordinator: coordinator
+            sessionCoordinator: coordinator,
+            reminderScheduler: IntentReminderSchedulerSpy()
         )
     }
 }
@@ -145,6 +211,45 @@ private final class StubIntentTemplateRepository: GoalTemplateRepository {
 
     func delete(id: UUID) async throws {
         templates.removeAll(where: { $0.id == id })
+    }
+}
+
+private enum IntentReminderSchedulerError: Error {
+    case forced
+}
+
+private final class IntentReminderSchedulerSpy: ReminderScheduling {
+    struct Call {
+        let session: GoalSession
+        let reminderOffsetMinutes: Int
+    }
+
+    var calls: [Call] = []
+    var shouldThrow = false
+
+    func scheduleReminder(
+        session: GoalSession,
+        reminderOffsetMinutes: Int
+    ) async throws -> ReminderScheduleResult {
+        calls.append(
+            Call(
+                session: session,
+                reminderOffsetMinutes: reminderOffsetMinutes
+            )
+        )
+
+        if shouldThrow {
+            throw IntentReminderSchedulerError.forced
+        }
+
+        let event = ReminderEvent(
+            sessionId: session.id,
+            scheduledAt: session.startedAt.addingTimeInterval(60)
+        )
+        return ReminderScheduleResult(
+            event: event,
+            requestIdentifier: "intent-spy-\(event.id.uuidString)"
+        )
     }
 }
 
