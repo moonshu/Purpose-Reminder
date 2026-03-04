@@ -2,17 +2,7 @@ import ManagedSettings
 import Foundation
 import OSLog
 
-private enum ShieldRoute: String {
-    case startGoalSelection
-    case dismissShield
-}
-
-private enum ShieldRouteStorage {
-    static let appGroupSuiteName = "group.com.purposereminder.shared"
-    static let lastEventKey = "shield.lastEvent"
-}
-
-private struct ShieldRouteEvent: Codable {
+private struct ShieldRoutePayload: Codable {
     let route: String
     let targetType: String
     let isPolicyManaged: Bool
@@ -28,7 +18,7 @@ private struct ShieldActionRouter {
 
     init(
         defaults: UserDefaults? = UserDefaults(
-            suiteName: ShieldRouteStorage.appGroupSuiteName
+            suiteName: Constants.AppGroup.suiteName
         )
     ) {
         self.defaults = defaults
@@ -40,7 +30,7 @@ private struct ShieldActionRouter {
             return false
         }
 
-        let event = ShieldRouteEvent(
+        let event = ShieldRoutePayload(
             route: route.rawValue,
             targetType: targetType,
             isPolicyManaged: isPolicyManaged,
@@ -49,7 +39,7 @@ private struct ShieldActionRouter {
 
         do {
             let data = try JSONEncoder().encode(event)
-            defaults.set(data, forKey: ShieldRouteStorage.lastEventKey)
+            defaults.set(data, forKey: Constants.AppGroup.shieldLastEventKey)
             return true
         } catch {
             logger.error("Failed to encode route event: \(error.localizedDescription, privacy: .public)")

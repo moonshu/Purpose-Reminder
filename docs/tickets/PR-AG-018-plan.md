@@ -30,6 +30,7 @@
    - 동일 앱 범위(같은 `targetAppTokenData`) 내 중복 텍스트 금지
 3. 정책 기본 템플릿 후보
    - 공용 템플릿(`targetAppTokenData == nil`) + 해당 앱 템플릿만 노출
+   - 정책 target이 `category/webDomain`이면 공용 템플릿만 노출
 4. dangling `defaultTemplateId` 처리
    - 저장 시 템플릿이 존재하지 않으면 `nil`로 정리
 
@@ -82,6 +83,40 @@ sequenceDiagram
     PolicyRepo-->>PolicyVM: "saved policy"
 ```
 
+## 4-3. 시각화 (정책 target kind 분기)
+```mermaid
+flowchart TD
+    A["AppPolicy.appTokenData"] --> B["PolicyTargetTokenCodec.decode"]
+    B --> C{"application/category/webDomain"}
+    C -- "application" --> D["앱 전용 템플릿 + 공용 템플릿"]
+    C -- "category" --> E["공용 템플릿만"]
+    C -- "webDomain" --> E
+    D --> F["defaultTemplate picker 후보"]
+    E --> F
+```
+
+## 4-4. 인터페이스 초안 (코드 수정 직전)
+```swift
+// Features/GoalTemplates/GoalTemplatesView.swift
+@MainActor
+final class GoalTemplatesViewModel: ObservableObject {
+    @Published private(set) var templates: [GoalTemplate] = []
+    @Published var draftText: String = ""
+    @Published var errorMessage: String?
+
+    func load() async
+    func createTemplate(targetAppTokenData: Data?) async
+    func updateTemplate(id: UUID, text: String) async
+    func deleteTemplate(id: UUID) async
+    func toggleFavorite(id: UUID) async
+}
+
+// Features/PolicySettings/PolicySettingsViewModel 확장 예정
+extension PolicySettingsViewModel {
+    func availableDefaultTemplates(for policy: AppPolicy, templates: [GoalTemplate]) -> [GoalTemplate]
+}
+```
+
 ## 5. 구현 단계 (순차 실행)
 1. GoalTemplatesViewModel 작성
    - `load()`, `createTemplate`, `updateTemplate`, `deleteTemplate`, `toggleFavorite`
@@ -91,6 +126,7 @@ sequenceDiagram
    - 공용/앱별 필터 UI(세그먼트 또는 section)
 3. PolicySettings 확장
    - ViewModel에 `GoalTemplateRepository` 주입
+   - `PolicyTargetTokenCodec` 기반 target kind 분기 적용
    - draft별 template 후보 계산
    - picker 선택값을 `defaultTemplateId`로 저장
 4. dangling default 정리

@@ -78,9 +78,51 @@ flowchart TD
     D -- "no" --> F["remove key + log warning + return nil"]
 ```
 
+## 4-3. 인터페이스 초안 (코드 수정 직전)
+```swift
+// Core/Services/ScreenTime/ShieldRouteInboxService.swift
+struct ShieldRouteEvent: Codable, Equatable {
+    let route: String
+    let targetType: String
+    let isPolicyManaged: Bool
+    let actionAt: TimeInterval
+}
+
+protocol ShieldRouteInboxServicing {
+    func consumeLastEvent() -> ShieldRouteEvent?
+}
+
+// App/AppRouter.swift
+enum MainTab: Hashable {
+    case session
+    case history
+    case policy
+}
+
+@MainActor
+final class AppRouterViewModel: ObservableObject {
+    @Published var selectedTab: MainTab = .session
+    func consumeShieldRouteIfNeeded()
+}
+```
+
+## 4-4. 시각화 (onboarding gate 경합)
+```mermaid
+flowchart TD
+    A["App launch"] --> B{"onboarding completed?"}
+    B -- "no" --> C["OnboardingView 노출"]
+    B -- "yes" --> D["MainTabView 노출"]
+    C --> E["Shield route 이벤트 도착 가능"]
+    E --> F{"정책: 즉시 소비?"}
+    F -- "yes" --> G["이벤트 소실 가능"]
+    F -- "no" --> H["완료 후 소비(권장)"]
+    D --> I["consumeLastEvent()"]
+```
+
 ## 5. 구현 단계 (순차 실행)
 1. 상수 정리
    - 기존 Extension 하드코딩 값을 Main App에서도 동일 참조 가능하게 상수화
+   - `ShieldActionExtension` 내부 하드코딩 상수 제거 여부까지 범위 포함
 2. route inbox 서비스 구현
    - 입력: App Group `UserDefaults`
    - 출력: `ShieldRouteEvent?`

@@ -10,6 +10,7 @@ enum SessionCoordinatorState: Equatable {
 enum SessionCoordinatorError: LocalizedError, Equatable {
     case invalidTransition(from: SessionCoordinatorState, event: String)
     case activeSessionMissing
+    case sessionNotActive
 
     var errorDescription: String? {
         switch self {
@@ -17,6 +18,8 @@ enum SessionCoordinatorError: LocalizedError, Equatable {
             return "허용되지 않은 상태 전이입니다. state=\(from), event=\(event)"
         case .activeSessionMissing:
             return "활성 세션을 찾을 수 없습니다."
+        case .sessionNotActive:
+            return "세션이 active 상태가 아닙니다."
         }
     }
 }
@@ -101,6 +104,36 @@ final class SessionCoordinator {
         let session = try await updateCurrentSession(status: .timedOut, durationDeltaMinutes: 0)
         state = .idle
         return session
+    }
+
+    func attachToActiveSessionIfNeeded(sessionId: UUID) async throws {
+        switch state {
+        case let .active(id), let .reminded(id):
+            if id == sessionId {
+                return
+            }
+            throw SessionCoordinatorError.invalidTransition(
+                from: state,
+                event: "attachToActiveSessionIfNeeded"
+            )
+        case .pendingGoal:
+            throw SessionCoordinatorError.invalidTransition(
+                from: state,
+                event: "attachToActiveSessionIfNeeded"
+            )
+        case .idle:
+            break
+        }
+
+        guard let session = try await repository.fetch(id: sessionId) else {
+            throw SessionCoordinatorError.activeSessionMissing
+        }
+
+        guard session.status == .active, session.endedAt == nil else {
+            throw SessionCoordinatorError.sessionNotActive
+        }
+
+        state = .active(sessionId: session.id)
     }
 
     private func updateCurrentSession(

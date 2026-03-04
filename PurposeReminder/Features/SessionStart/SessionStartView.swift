@@ -77,6 +77,16 @@ struct SessionStartView: View {
                             .foregroundStyle(.orange)
                     }
                 }
+
+                Section("바로가기") {
+                    NavigationLink("진행 중 세션 보기") {
+                        SessionActiveView()
+                    }
+
+                    NavigationLink("목표 템플릿 관리") {
+                        GoalTemplatesView()
+                    }
+                }
             }
             .navigationTitle("세션 시작")
             .overlay {

@@ -61,7 +61,24 @@ flowchart TD
     T20 --> F5
 ```
 
-## 5. Stage 4
+### 4-3. 실행 전 공통 프리플라이트
+```mermaid
+flowchart TD
+    A["Constants 정리 여부"] --> B{"App Group/Notification 키 하드코딩 제거?"}
+    B -- "yes" --> C["테스트 스텁 영향도 점검"]
+    B -- "no" --> Z["먼저 상수화 선행 작업"]
+    C --> D{"SessionCoordinator API 확장 영향 확인?"}
+    D -- "yes" --> E["티켓별 구현 착수"]
+    D -- "no" --> Y["SessionCoordinatorTests 보강 먼저"]
+```
+
+## 5. 탐색 완료 체크포인트
+1. 플레이스홀더 3개(GoalTemplates/SessionActive/DeviceActivityMonitor) 잔존 확인
+2. `PolicyTargetTokenCodec` 도입으로 policy target이 앱/카테고리/웹으로 확장된 점 반영
+3. Stage 4 대상 테스트(`SessionActive`, `ShieldRouteInbox`, `TimeoutInbox`, `NotificationActionHandler`)가 아직 없음을 확인
+4. onboarding gate(`AppOnboardingState`)가 route/timeout 이벤트 소비 시점에 주는 영향 확인
+
+## 6. Stage 4
 
 ## [PR-AG-016] ShieldRoute 소비 및 앱 라우팅 연결
 - 상태: `READY`

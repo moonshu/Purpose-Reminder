@@ -86,8 +86,8 @@ final class ReminderScheduler {
         content.sound = .default
         content.categoryIdentifier = Constants.Notification.reminderCategoryIdentifier
         content.userInfo = [
-            "sessionId": session.id.uuidString,
-            "reminderEventId": event.id.uuidString
+            Constants.Notification.sessionIdUserInfoKey: session.id.uuidString,
+            Constants.Notification.reminderEventIdUserInfoKey: event.id.uuidString
         ]
 
         let interval = max(1, scheduledAt.timeIntervalSince(timeProvider.now))

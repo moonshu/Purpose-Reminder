@@ -6,21 +6,26 @@ import FamilyControls
 final class PolicySettingsViewModel: ObservableObject {
     @Published var selection = FamilyActivitySelection()
     @Published private(set) var drafts: [PolicyDraft] = []
+    @Published private(set) var templates: [GoalTemplate] = []
     @Published private(set) var isLoading = false
     @Published private(set) var isSaving = false
     @Published var errorMessage: String?
     @Published var successMessage: String?
 
     private let repository: AppPolicyRepository
+    private let templateRepository: GoalTemplateRepository
     private let appSelectionService: AppSelectionServicing
     private let shieldPolicyService: ShieldPolicyServicing
+    private let tokenCodec = PolicyTargetTokenCodec()
 
     init(
         repository: AppPolicyRepository,
+        templateRepository: GoalTemplateRepository,
         appSelectionService: AppSelectionServicing,
         shieldPolicyService: ShieldPolicyServicing
     ) {
         self.repository = repository
+        self.templateRepository = templateRepository
         self.appSelectionService = appSelectionService
         self.shieldPolicyService = shieldPolicyService
     }
@@ -31,6 +36,7 @@ final class PolicySettingsViewModel: ObservableObject {
 
         do {
             let policies = try await repository.fetchAll().filter(\.isActive)
+            templates = try await templateRepository.fetchAll()
             selection = appSelectionService.makeSelection(from: policies)
             drafts = policies.map(PolicyDraft.init(policy:))
             syncDraftsWithSelection()
@@ -51,6 +57,8 @@ final class PolicySettingsViewModel: ObservableObject {
         drafts = mergedPolicies
             .map(PolicyDraft.init(policy:))
             .sorted { $0.id.uuidString < $1.id.uuidString }
+
+        normalizeDraftDefaultTemplates()
     }
 
     func save() async {
@@ -68,7 +76,9 @@ final class PolicySettingsViewModel: ObservableObject {
             let selectedIds = Set(drafts.map(\.id))
 
             for draft in drafts {
-                try await repository.save(draft.asPolicy)
+                var normalized = draft
+                normalized.defaultTemplateId = normalizedDefaultTemplateId(for: draft)
+                try await repository.save(normalized.asPolicy)
             }
 
             for policy in existingPolicies where !selectedIds.contains(policy.id) {
@@ -87,6 +97,40 @@ final class PolicySettingsViewModel: ObservableObject {
         } catch {
             errorMessage = "정책 저장 중 오류가 발생했습니다."
             successMessage = nil
+        }
+    }
+
+    func templateOptions(for draft: PolicyDraft) -> [GoalTemplate] {
+        let scoped = templates.filter { template in
+            guard let templateTokenData = template.targetAppTokenData else {
+                return true
+            }
+            return doesTemplateTokenMatchPolicy(
+                templateTokenData: templateTokenData,
+                policyTokenData: draft.appTokenData
+            )
+        }
+
+        return scoped.sorted { lhs, rhs in
+            if lhs.isFavorite != rhs.isFavorite {
+                return lhs.isFavorite && !rhs.isFavorite
+            }
+
+            if lhs.useCount != rhs.useCount {
+                return lhs.useCount > rhs.useCount
+            }
+
+            if lhs.createdAt != rhs.createdAt {
+                return lhs.createdAt > rhs.createdAt
+            }
+
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+    }
+
+    func updateDefaultTemplate(for id: UUID, templateId: UUID?) {
+        updateDraft(id: id) { draft in
+            draft.defaultTemplateId = templateId
         }
     }
 
@@ -113,6 +157,45 @@ final class PolicySettingsViewModel: ObservableObject {
         var copied = drafts[index]
         update(&copied)
         drafts[index] = copied
+    }
+
+    private func normalizeDraftDefaultTemplates() {
+        drafts = drafts.map { draft in
+            var normalized = draft
+            normalized.defaultTemplateId = normalizedDefaultTemplateId(for: draft)
+            return normalized
+        }
+    }
+
+    private func normalizedDefaultTemplateId(for draft: PolicyDraft) -> UUID? {
+        guard let defaultTemplateId = draft.defaultTemplateId else {
+            return nil
+        }
+
+        return templateOptions(for: draft)
+            .contains(where: { $0.id == defaultTemplateId }) ? defaultTemplateId : nil
+    }
+
+    private func doesTemplateTokenMatchPolicy(
+        templateTokenData: Data,
+        policyTokenData: Data
+    ) -> Bool {
+        // Fast path: exact byte match for same encoding strategy.
+        if templateTokenData == policyTokenData {
+            return true
+        }
+
+        guard let policyTarget = try? tokenCodec.decode(from: policyTokenData),
+              let templateTarget = try? tokenCodec.decode(from: templateTokenData) else {
+            return false
+        }
+
+        switch (policyTarget, templateTarget) {
+        case let (.application(policyToken), .application(templateToken)):
+            return policyToken == templateToken
+        default:
+            return false
+        }
     }
 }
 
@@ -151,12 +234,14 @@ struct PolicySettingsView: View {
 
     init(
         repository: AppPolicyRepository,
+        templateRepository: GoalTemplateRepository,
         appSelectionService: AppSelectionServicing = AppSelectionService(),
         shieldPolicyService: ShieldPolicyServicing = ShieldPolicyService()
     ) {
         _viewModel = StateObject(
             wrappedValue: PolicySettingsViewModel(
                 repository: repository,
+                templateRepository: templateRepository,
                 appSelectionService: appSelectionService,
                 shieldPolicyService: shieldPolicyService
             )
@@ -170,6 +255,7 @@ struct PolicySettingsView: View {
     ) {
         self.init(
             repository: SwiftDataAppPolicyRepository(context: SwiftDataStack.shared.mainContext),
+            templateRepository: SwiftDataGoalTemplateRepository(context: SwiftDataStack.shared.mainContext),
             appSelectionService: appSelectionService,
             shieldPolicyService: shieldPolicyService
         )
@@ -228,6 +314,19 @@ struct PolicySettingsView: View {
                                     set: { viewModel.updateReminderOffset(for: draft.id, value: $0) }
                                 ), in: 1...max(1, draft.defaultDurationMinutes - 1)) {
                                     Text("리마인드 시점: 종료 \(draft.reminderOffsetMinutes)분 전")
+                                }
+
+                                Picker(
+                                    "기본 템플릿",
+                                    selection: Binding(
+                                        get: { draft.defaultTemplateId },
+                                        set: { viewModel.updateDefaultTemplate(for: draft.id, templateId: $0) }
+                                    )
+                                ) {
+                                    Text("없음").tag(UUID?.none)
+                                    ForEach(viewModel.templateOptions(for: draft)) { template in
+                                        Text(template.text).tag(Optional(template.id))
+                                    }
                                 }
                             }
                             .padding(.vertical, 4)

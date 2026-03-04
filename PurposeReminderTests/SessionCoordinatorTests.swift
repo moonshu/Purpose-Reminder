@@ -101,6 +101,54 @@ final class SessionCoordinatorTests: XCTestCase {
             XCTAssertEqual(error, .invalidTransition(from: .idle, event: "startSession"))
         }
     }
+
+    func testAttachToActiveSessionFromIdleThenComplete() async throws {
+        let repository = InMemoryGoalSessionRepository()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let clock = FixedTimeProvider(now: now)
+        let coordinator = SessionCoordinator(repository: repository, timeProvider: clock)
+
+        let session = GoalSession(
+            targetAppTokenData: Data("com.example.instagram".utf8),
+            templateId: nil,
+            goalTextSnapshot: "attach",
+            startedAt: now,
+            endedAt: nil,
+            status: .active,
+            plannedDurationMinutes: 20
+        )
+        try await repository.save(session)
+
+        try await coordinator.attachToActiveSessionIfNeeded(sessionId: session.id)
+        let completed = try await coordinator.completeSession()
+
+        XCTAssertEqual(completed.id, session.id)
+        XCTAssertEqual(completed.status, .completed)
+        XCTAssertEqual(coordinator.state, .idle)
+    }
+
+    func testAttachFailsWhenSessionAlreadyEnded() async throws {
+        let repository = InMemoryGoalSessionRepository()
+        let coordinator = SessionCoordinator(repository: repository, timeProvider: FixedTimeProvider())
+
+        let session = GoalSession(
+            targetAppTokenData: Data("com.example.instagram".utf8),
+            templateId: nil,
+            goalTextSnapshot: "ended",
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            endedAt: Date(timeIntervalSince1970: 1_700_000_100),
+            status: .completed,
+            plannedDurationMinutes: 20
+        )
+        try await repository.save(session)
+
+        do {
+            try await coordinator.attachToActiveSessionIfNeeded(sessionId: session.id)
+            XCTFail("expected sessionNotActive")
+        } catch let error as SessionCoordinatorError {
+            XCTAssertEqual(error, .sessionNotActive)
+        }
+    }
 }
 
 private struct FixedTimeProvider: TimeProviderProtocol {

@@ -88,6 +88,41 @@ flowchart TD
     B -- "unknown" --> G["ignore + log"]
 ```
 
+## 4-3. 인터페이스 초안 (코드 수정 직전)
+```swift
+// Core/Services/Notification/NotificationActionHandler.swift
+@MainActor
+protocol NotificationActionHandling {
+    func registerCategories()
+    func handle(response: UNNotificationResponse) async
+}
+
+@MainActor
+final class NotificationActionHandler: NotificationActionHandling {
+    func registerCategories()
+    func handle(response: UNNotificationResponse) async
+}
+
+// App/PurposeReminderApp.swift
+final class NotificationDelegateBridge: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse
+    ) async
+}
+```
+
+## 4-4. 시각화 (권한 상태와 처리)
+```mermaid
+flowchart TD
+    A["AuthorizationSnapshot"] --> B{"canDeliverReminders?"}
+    B -- "yes" --> C["알림 수신/액션 처리 정상 경로"]
+    B -- "no" --> D["알림 미수신 가능"]
+    D --> E["앱은 세션 기능 계속 제공"]
+    C --> F["ReminderEvent.action 저장"]
+    E --> F["(수동 액션 경로로 보완)"]
+```
+
 ## 5. 구현 단계 (순차 실행)
 1. 상수 확장
    - category/action 식별자와 userInfo key를 상수로 정리
@@ -100,6 +135,7 @@ flowchart TD
    - `PurposeReminderApp`에 delegate bridge 추가
    - `UNUserNotificationCenter.current().setNotificationCategories(...)`
    - `didReceive response`에서 handler 호출
+   - 알림 권한 미승인 상태에서도 앱 부팅/세션 기능은 정상 동작 유지
 4. 방어 로직
    - 알 수 없는 action ID는 무시
    - UUID 파싱 실패는 무시 + 로그

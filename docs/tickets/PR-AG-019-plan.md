@@ -78,6 +78,38 @@ flowchart TD
     F -- "no" --> H["timeoutSession()"]
 ```
 
+## 4-3. 인터페이스 초안 (코드 수정 직전)
+```swift
+// Extensions/DeviceActivityMonitorExtension/DeviceActivityMonitorExtension.swift
+struct SessionTimeoutEvent: Codable, Equatable {
+    let occurredAt: TimeInterval
+    let activityName: String
+    let reason: String
+}
+
+// Core/Services/Session/SessionTimeoutInboxService.swift
+protocol SessionTimeoutInboxServicing {
+    func consumeTimeoutEvent() -> SessionTimeoutEvent?
+}
+
+// App lifecycle 진입점
+@MainActor
+protocol SessionTimeoutApplying {
+    func applyTimeoutEventIfNeeded() async
+}
+```
+
+## 4-4. 시각화 (키/상수 정합성)
+```mermaid
+flowchart LR
+    A["Constants.AppGroup.suiteName"] --> B["DeviceActivityMonitorExtension write"]
+    A --> C["Main App consume"]
+    D["Constants.AppGroup.timeoutEventKey"] --> B
+    D --> C
+    B --> E["session.timeout.lastEvent"]
+    E --> C
+```
+
 ## 5. 구현 단계 (순차 실행)
 1. timeout 이벤트 모델 정의
    - 필드 예시: `activityName`, `occurredAt`, `reason`
@@ -86,6 +118,7 @@ flowchart TD
    - 저장 실패 시 로그만 기록하고 종료
 3. Main App inbox 서비스 구현
    - `consumeTimeoutEvent()`로 decode 후 즉시 key 삭제
+   - decode 실패도 key 삭제(무한 재시도 방지)
 4. timeout 적용 로직 연결
    - 이벤트 존재 시 active 세션 조회
    - `attachToActiveSessionIfNeeded(sessionId:)` 후 `timeoutSession()`

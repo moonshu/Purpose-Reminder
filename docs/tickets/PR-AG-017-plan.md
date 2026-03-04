@@ -81,11 +81,45 @@ sequenceDiagram
     Repo-->>History: "updated session available"
 ```
 
+## 4-3. 인터페이스 초안 (코드 수정 직전)
+```swift
+// Core/Services/Session/SessionCoordinator.swift
+extension SessionCoordinator {
+    func attachToActiveSessionIfNeeded(sessionId: UUID) async throws
+}
+
+// Features/SessionActive/SessionActiveView.swift
+@MainActor
+final class SessionActiveViewModel: ObservableObject {
+    @Published private(set) var activeSession: GoalSession?
+    @Published private(set) var remainingSeconds: Int = 0
+    @Published private(set) var isProcessing = false
+    @Published var errorMessage: String?
+
+    func load() async
+    func complete() async
+    func extend() async
+    func abandon() async
+}
+```
+
+## 4-4. 시각화 (카운트다운 계산)
+```mermaid
+flowchart TD
+    A["active session"] --> B["plannedDurationMinutes * 60"]
+    B --> C["elapsed = now - startedAt"]
+    C --> D["remaining = max(0, planned - elapsed)"]
+    D --> E{"remaining == 0?"}
+    E -- "yes" --> F["timeout 후보 (PR-AG-019 연계)"]
+    E -- "no" --> G["UI 카운트다운 갱신"]
+```
+
 ## 5. 구현 단계 (순차 실행)
 1. `SessionCoordinator` 확장
    - `attachToActiveSessionIfNeeded(sessionId:)` 구현
    - 이미 `.active/.reminded(sessionId)`면 no-op
    - `.idle/.pendingGoal`이면 저장소 조회 후 active 확인 뒤 상태 attach
+   - `.completed/.abandoned/.timed_out` 세션이면 attach 거부
 2. SessionActiveViewModel 구현
    - load 시 active 세션 1개 선택(최신 startedAt 기준)
    - 1초 주기 타이머로 남은 시간 갱신

@@ -190,3 +190,35 @@ stateDiagram-v2
     abandoned --> idle
     timed_out --> idle
 ```
+
+## 12. 탐색 확정 메모 (코드 인터페이스 기준)
+- 아래 항목은 2026-03-04 기준 실제 코드에서 확인된 "변경 전 고정 인터페이스"다.
+
+| 영역 | 현재 인터페이스 | Stage 4에서 추가/변경 예정 |
+|---|---|---|
+| Session 상태 전이 | `SessionCoordinator.beginGoalSelection/startSession/complete/extend/abandon/timeout` | `attachToActiveSessionIfNeeded(sessionId:)` 추가 |
+| Reminder | `ReminderScheduler.scheduleReminder/markReminderAction` | Notification action handler 경유 호출 경로 연결 |
+| Router | `AppRouter`는 onboarding gate + `MainTabView` 정적 탭 | route inbox 소비 + 선택 탭 상태 제어 추가 |
+| Policy 토큰 | `PolicyTargetTokenCodec`으로 application/category/webDomain 지원 | GoalTemplate/defaultTemplate 연결 시 target kind 분기 추가 |
+| Extension bridge | ShieldActionExtension은 `shield.lastEvent` 기록만 수행 | Main App consume-once 서비스 신설 |
+| Timeout bridge | DeviceActivityMonitorExtension 플레이스홀더 | timeout 이벤트 기록 + 소비 서비스 신설 |
+| Notification lifecycle | `PurposeReminderApp`는 delegate 미연결 | category 등록 + delegate bridge + action 처리 추가 |
+
+## 13. 코드 수정 직전 체크리스트
+1. App Group key를 `Constants`로 수렴하고 Extension/Main App 하드코딩 제거 대상 확인
+2. `AppRouter`에서 onboarding 완료 전 route 이벤트 소실 정책(버퍼링/무시) 확정
+3. `SessionCoordinator` attach API 추가 시 기존 테스트 깨짐 범위 확인
+4. `AppPolicy.appTokenData`가 category/webDomain일 때 GoalTemplate 매칭 정책 확정
+5. Notification action 처리에서 `UNNotificationDismissActionIdentifier`를 `ignored`로 기록하는 정책 확정
+6. timeout/route 소비 서비스 모두 consume-once/parse-fail-clear 정책 일관화
+
+## 14. 정책 토큰 분기 시각화
+```mermaid
+flowchart TD
+    A["AppPolicy.appTokenData"] --> B["PolicyTargetTokenCodec.decode"]
+    B --> C{"target kind"}
+    C -- "application" --> D["GoalTemplate app-specific + global 후보"]
+    C -- "category/webDomain" --> E["GoalTemplate global 후보 우선"]
+    D --> F["SessionStartRecommendation/Policy defaultTemplate"]
+    E --> F
+```
